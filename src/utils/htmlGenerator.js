@@ -1606,3 +1606,1178 @@ export function downloadBackendCode(code, filename = 'server.js') {
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
 }
+
+/**
+ * 生成 Vue 组件代码
+ * @param {Object} pageData - 页面数据
+ * @param {Object} imagePaths - 图片路径映射
+ * @returns {string} - Vue 组件代码
+ */
+export function generateVueComponent(pageData, imagePaths = {}) {
+  const { width = 1200, height = 800, backgroundColor = '#ffffff', components = [], name = 'GeneratedPage' } = pageData
+  
+  // 将页面名称转换为 PascalCase
+  const componentName = name
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/(^|-)([a-z])/g, (m, p1, p2) => p2.toUpperCase())
+  
+  // 生成组件模板内容
+  const templateContent = generateVueTemplate(components, imagePaths, width, height)
+  
+  // 生成组件样式
+  const styleContent = generateVueStyles(components)
+  
+  // 生成脚本部分
+  const scriptContent = generateVueScript(components)
+  
+  return `<template>
+  <div class="page-container" :style="{ width: '${width}px', minHeight: '${height}px', backgroundColor: '${backgroundColor}' }">
+${templateContent}
+  </div>
+</template>
+
+<script setup>
+${scriptContent}
+</script>
+
+<style scoped>
+.page-container {
+  position: relative;
+  margin: 0 auto;
+}
+
+.page-container * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.page-container button {
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.page-container button:hover {
+  opacity: 0.9;
+}
+
+.page-container a {
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.page-container a:hover {
+  opacity: 0.8;
+}
+
+.page-container .datetime-widget {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  user-select: none;
+}
+
+.page-container .datetime-widget.datetime-digital {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.page-container .datetime-widget.datetime-traditional {
+  font-family: 'Georgia', serif;
+}
+
+.page-container .datetime-widget.datetime-compact {
+  font-size: 0.9em;
+}
+
+.page-container .form-group {
+  margin-bottom: 16px;
+}
+
+.page-container .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.page-container .form-group input,
+.page-container .form-group textarea,
+.page-container .form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.page-container .form-group input:focus,
+.page-container .form-group textarea:focus,
+.page-container .form-group select:focus {
+  outline: none;
+  border-color: #1890ff;
+}
+
+.page-container .form-group textarea {
+  resize: vertical;
+}
+
+.page-container .btn-primary {
+  width: 100%;
+  padding: 10px;
+  background-color: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.page-container .btn-primary:hover {
+  background-color: #40a9ff;
+}
+
+.page-container .form-title {
+  margin-bottom: 24px;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.page-container .form-checkbox {
+  margin-bottom: 16px;
+}
+
+.page-container .form-checkbox label {
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.page-container .form-description {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+.page-container .form-links {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.page-container .nav-menu-widget {
+  display: flex;
+  align-items: center;
+}
+
+.page-container .nav-menu-widget .nav-logo {
+  font-size: 20px;
+  font-weight: bold;
+  color: #1890ff;
+  text-decoration: none;
+  margin-right: 40px;
+}
+
+.page-container .nav-menu-widget .nav-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-container .nav-menu-widget .nav-item {
+  padding: 8px 16px;
+  color: #333;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: all 0.3s;
+  font-size: 14px;
+}
+
+.page-container .nav-menu-widget .nav-item:hover {
+  color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+.page-container .nav-menu-widget .nav-item.active {
+  color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.1);
+  font-weight: 500;
+}
+
+.page-container .breadcrumb-widget {
+  display: flex;
+  align-items: center;
+}
+
+.page-container .breadcrumb-widget .breadcrumb-link {
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.page-container .breadcrumb-widget .breadcrumb-link:hover {
+  color: #1890ff;
+}
+
+.page-container .breadcrumb-widget .breadcrumb-separator {
+  margin: 0 8px;
+}
+
+.page-container .tabs-widget {
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.page-container .tabs-widget .tabs-header {
+  display: flex;
+  background-color: #fafafa;
+}
+
+.page-container .tabs-widget .tab-item {
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: #666666;
+}
+
+.page-container .tabs-widget .tab-item:hover {
+  color: #1890ff;
+}
+
+.page-container .tabs-widget .tab-item.active {
+  font-weight: 500;
+  color: #1890ff;
+  border-bottom-color: #1890ff;
+}
+
+.page-container .tabs-widget .tabs-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.page-container .tabs-widget .tab-pane {
+  display: none;
+  height: 100%;
+  overflow: auto;
+}
+
+.page-container .tabs-widget .tab-pane.active {
+  display: block;
+}
+
+.page-container .container {
+  overflow: hidden;
+}
+
+${styleContent}
+</style>
+`
+}
+
+/**
+ * 生成 Vue 模板内容
+ * @param {Array} components - 组件列表
+ * @param {Object} imagePaths - 图片路径映射
+ * @param {number} pageWidth - 页面宽度
+ * @param {number} pageHeight - 页面高度
+ * @returns {string}
+ */
+function generateVueTemplate(components, imagePaths, pageWidth, pageHeight) {
+  const topLevelComponents = components.filter(comp => !comp.parentId)
+  return topLevelComponents.map(comp => 
+    generateVueComponentTemplate(comp, components, imagePaths, 2, pageWidth, pageHeight)
+  ).join('\n')
+}
+
+/**
+ * 生成单个组件的 Vue 模板
+ * @param {Object} component - 组件数据
+ * @param {Array} allComponents - 所有组件
+ * @param {Object} imagePaths - 图片路径映射
+ * @param {number} indent - 缩进级别
+ * @param {number} pageWidth - 页面宽度
+ * @param {number} pageHeight - 页面高度
+ * @returns {string}
+ */
+function generateVueComponentTemplate(component, allComponents, imagePaths, indent, pageWidth, pageHeight) {
+  const { type, props = {}, style = {} } = component
+  const className = generateComponentId(component)
+  
+  // 计算位置和尺寸样式
+  const leftPercent = (component.left / pageWidth) * 100
+  const topPercent = (component.top / pageHeight) * 100
+  const widthPercent = (component.width / pageWidth) * 100
+  const heightPercent = (component.height / pageHeight) * 100
+
+  // 生成 Vue :style 绑定所需的 JavaScript 对象格式
+  const baseStyle = [
+    `position: 'absolute'`,
+    `left: '${leftPercent}%'`,
+    `top: '${topPercent}%'`,
+    `width: '${widthPercent}%'`,
+    `height: '${heightPercent}%'`,
+    style.backgroundColor ? `backgroundColor: '${style.backgroundColor}'` : '',
+    style.opacity && style.opacity !== 1 ? `opacity: ${style.opacity}` : '',
+    style.borderRadius ? `borderRadius: '${style.borderRadius}px'` : '',
+    getPaddingCSS(style) ? `padding: '${getPaddingCSS(style)}'` : '',
+    getShadowCSS(style) ? `boxShadow: '${getShadowCSS(style)}'` : '',
+    style.rotate ? `transform: 'rotate(${style.rotate}deg)'` : '',
+    style.fontSize ? `fontSize: '${style.fontSize}px'` : '',
+    style.color ? `color: '${style.color}'` : '',
+    style.fontWeight ? `fontWeight: '${style.fontWeight}'` : '',
+    style.lineHeight ? `lineHeight: '${style.lineHeight}'` : '',
+    style.letterSpacing ? `letterSpacing: '${style.letterSpacing}px'` : '',
+    style.textDecoration && style.textDecoration !== 'none' ? `textDecoration: '${style.textDecoration}'` : '',
+    style.textTransform && style.textTransform !== 'none' ? `textTransform: '${style.textTransform}'` : '',
+    style.textAlign ? `textAlign: '${style.textAlign}'` : '',
+    `boxSizing: 'border-box'`
+  ].filter(Boolean).join(', ')
+  
+  const padding = ' '.repeat(indent)
+  
+  switch (type) {
+    case 'text':
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">${escapeHTML(props.content || '文本')}</div>`
+    
+    case 'image': {
+      const objectFit = props.objectFit || 'contain'
+      let imageSrc = props.src || 'https://via.placeholder.com/200'
+      if (props.localImage && imagePaths[component.id]) {
+        imageSrc = imagePaths[component.id]
+      }
+      const imgStyle = `object-fit: ${objectFit}; width: 100%; height: 100%; display: block;`
+      
+      if (props.hasLink) {
+        const href = props.href || '#'
+        const target = props.target || '_blank'
+        return `${padding}<a href="${escapeAttr(href)}" target="${escapeAttr(target)}" class="${className}" :style="{ ${baseStyle} }"><img :src="\`${imageSrc}\`" alt="${props.alt || '图片'}" style="${imgStyle}" /></a>`
+      }
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }"><img :src="\`${imageSrc}\`" alt="${props.alt || '图片'}" style="${imgStyle}" /></div>`
+    }
+    
+    case 'button': {
+      const actionType = props.actionType || 'link'
+      const btnContent = props.content || '按钮'
+      const btnHref = props.href || '#'
+      const btnTarget = props.target || '_self'
+      const btnStyle = baseStyle + `, border: 'none', cursor: 'pointer'`
+
+      let onClick = ''
+      if (actionType === 'link') {
+        onClick = `@click="navigateTo('${escapeAttr(btnHref)}', '${escapeAttr(btnTarget)}')"`
+      } else if (actionType === 'alert') {
+        const msg = props.alertMessage || '点击了按钮'
+        onClick = `@click="showAlert('${escapeAttr(msg)}')"`
+      } else if (actionType === 'api') {
+        const apiUrl = props.apiConfig?.url || ''
+        const apiMethod = props.apiConfig?.method || 'POST'
+        const apiBody = props.apiConfig?.body ? JSON.stringify(props.apiConfig.body) : '{}'
+        onClick = `@click="callAPI('${escapeAttr(apiUrl)}', '${escapeAttr(apiMethod)}', '${escapeAttr(apiBody)}')"`
+      }
+
+      return `${padding}<button class="${className}" :style="{ ${btnStyle} }" ${onClick}>${escapeHTML(btnContent)}</button>`
+    }
+    
+    case 'container': {
+      const children = allComponents.filter(c => c.parentId === component.id)
+      const childrenHTML = children.length > 0 
+        ? '\n' + children.map(child => generateVueComponentTemplate(child, allComponents, imagePaths, indent + 2, pageWidth, pageHeight)).join('\n') + '\n' + padding
+        : ''
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">${childrenHTML}</div>`
+    }
+    
+    case 'link':
+      return `${padding}<a href="${escapeAttr(props.href || '#')}" class="${className}" :style="{ ${baseStyle}, textDecoration: 'none' }">${escapeHTML(props.content || '链接')}</a>`
+    
+    case 'datetime': {
+      return `${padding}<div class="${className} datetime-widget" :style="{ ${baseStyle} }" :id="datetimeId" ref="datetimeRef"></div>`
+    }
+    
+    case 'navMenu': {
+      const navLogo = props.logo || 'Logo'
+      const navLogoUrl = props.logoUrl || '#'
+      const navMenuItems = props.menuItems || '首页|#'
+      const navActiveIndex = props.activeIndex || 0
+      const navTextColor = style.color || '#333333'
+      const navActiveColor = style.activeColor || '#1890ff'
+      
+      const items = navMenuItems.split('\n').filter(item => item.trim())
+      const navItemsHTML = items.map((item, index) => {
+        const [text, url] = item.split('|')
+        const itemUrl = url?.trim() || '#'
+        const itemText = text?.trim() || '菜单项'
+        const isActive = index === navActiveIndex
+        return `${' '.repeat(indent + 4)}<a href="${escapeAttr(itemUrl)}" class="nav-item${isActive ? ' active' : ''}" :style="{ color: ${isActive ? `'${navActiveColor}'` : `'${navTextColor}'`}, backgroundColor: ${isActive ? `'${navActiveColor}15'` : `'transparent'`} }">${escapeHTML(itemText)}</a>`
+      }).join('\n')
+      
+      return `${padding}<nav class="${className} nav-menu-widget" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<a href="${escapeAttr(navLogoUrl)}" class="nav-logo" :style="{ color: '${navActiveColor}' }">${escapeHTML(navLogo)}</a>
+${' '.repeat(indent + 2)}<div class="nav-items">
+${navItemsHTML}
+${' '.repeat(indent + 2)}</div>
+${padding}</nav>`
+    }
+    
+    case 'breadcrumb': {
+      const breadcrumbItems = props.items || '首页|#'
+      const breadcrumbSeparator = props.separator || '/'
+      const breadcrumbTextColor = style.color || '#666666'
+      const breadcrumbSeparatorColor = style.separatorColor || '#999999'
+      const breadcrumbTarget = props.target || '_self'
+      
+      const items = breadcrumbItems.split('\n').filter(item => item.trim())
+      const breadcrumbItemsHTML = items.map((item, index) => {
+        const [text, url] = item.split('|')
+        const itemUrl = url?.trim() || '#'
+        const itemText = text?.trim() || '导航项'
+        const separatorHTML = index > 0 ? `${' '.repeat(indent + 4)}<span class="breadcrumb-separator" :style="{ color: '${breadcrumbSeparatorColor}' }">${escapeHTML(breadcrumbSeparator)}</span>` : ''
+        return `${separatorHTML}
+${' '.repeat(indent + 4)}<a href="${escapeAttr(itemUrl)}" class="breadcrumb-link" :style="{ color: '${breadcrumbTextColor}' }" target="${escapeAttr(breadcrumbTarget)}">${escapeHTML(itemText)}</a>`
+      }).join('\n')
+      
+      return `${padding}<div class="${className} breadcrumb-widget" :style="{ ${baseStyle} }">
+${breadcrumbItemsHTML}
+${padding}</div>`
+    }
+    
+    case 'tabs': {
+      const tabItemsStr = typeof props.tabs === 'string' ? props.tabs : '标签一|tab1\n标签二|tab2\n标签三|tab3'
+      const tabActiveTab = props.activeTab || 'tab1'
+      const tabType = props.type || 'line'
+      const tabContents = props.tabContents || {}
+      const tabImages = props.tabImages || {}
+      
+      const items = tabItemsStr.split('\n').filter(item => item.trim())
+      
+      const tabsHeaderHTML = items.map((item, index) => {
+        const parts = item.split('|')
+        const text = (parts[0] || '').trim()
+        const key = (parts[1] || text).trim()
+        const tabKey = key || `tab${index + 1}`
+        const tabText = text || `标签${index + 1}`
+        return `${' '.repeat(indent + 4)}<div class="tab-item${tabKey === tabActiveTab ? ' active' : ''}" :data-tab="\`${tabKey}\`" @click="switchTab('${className}', '${tabKey}')">${escapeHTML(tabText)}</div>`
+      }).join('\n')
+      
+      const tabsContentHTML = items.map((item, index) => {
+        const parts = item.split('|')
+        const text = (parts[0] || '').trim()
+        const key = (parts[1] || text).trim()
+        const tabKey = key || `tab${index + 1}`
+        const tabText = text || `标签${index + 1}`
+        const tabContent = tabContents[tabKey] || tabContents[text] || `${tabText}的内容`
+        
+        let imageHtml = ''
+        const imageConfig = tabImages[tabKey] || {}
+        let finalImageUrl = imageConfig.url || ''
+        if (imageConfig.isLocalImage && imagePaths[`${component.id}_${tabKey}`]) {
+          finalImageUrl = imagePaths[`${component.id}_${tabKey}`]
+        }
+        
+        if (finalImageUrl) {
+          imageHtml = `<img :src="\`${finalImageUrl}\`" style="width: ${imageConfig.width || '100%'}; height: ${imageConfig.height || 'auto'}; border-radius: ${imageConfig.borderRadius || '0'}; display: block; margin-bottom: 15px;" alt="" />`
+        }
+        
+        return `${' '.repeat(indent + 4)}<div class="tab-pane${tabKey === tabActiveTab ? ' active' : ''}" :data-tab="\`${tabKey}\`">
+${' '.repeat(indent + 6)}<div style="padding: 20px; color: #666666; white-space: pre-wrap;">${imageHtml}${escapeHTML(tabContent)}</div>
+${' '.repeat(indent + 4)}</div>`
+      }).join('\n')
+      
+      return `${padding}<div class="${className} tabs-widget tabs-${tabType}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<div class="tabs-header${tabType === 'card' ? ' tabs-header-card' : ''}">
+${tabsHeaderHTML}
+${' '.repeat(indent + 2)}</div>
+${' '.repeat(indent + 2)}<div class="tabs-content">
+${tabsContentHTML}
+${' '.repeat(indent + 2)}</div>
+${padding}</div>`
+    }
+    
+    case 'loginForm': {
+      const loginTitle = props.title || '用户登录'
+      const loginSubmitText = props.submitText || '登录'
+      const loginShowRemember = props.showRemember !== false
+      const loginRememberText = props.rememberText || '记住我'
+      const loginShowForgot = props.showForgot !== false
+      const loginForgotText = props.forgotText || '忘记密码？'
+      const loginForgotLink = props.forgotLink || '#'
+      
+      return `${padding}<form class="${className}" :style="{ ${baseStyle} }" @submit.prevent="handleLoginSubmit">
+${' '.repeat(indent + 2)}<h2 class="form-title">${escapeHTML(loginTitle)}</h2>
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="login_username">用户名</label>
+${' '.repeat(indent + 4)}<input type="text" id="login_username" v-model="loginForm.username" required placeholder="请输入用户名" />
+${' '.repeat(indent + 2)}</div>
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="login_password">密码</label>
+${' '.repeat(indent + 4)}<input type="password" id="login_password" v-model="loginForm.password" required placeholder="请输入密码" />
+${' '.repeat(indent + 2)}</div>
+${loginShowRemember ? `${' '.repeat(indent + 2)}<div class="form-group form-checkbox"><label><input type="checkbox" v-model="loginForm.remember"> ${escapeHTML(loginRememberText)}</label></div>` : ''}
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<button type="submit" class="btn-primary">${escapeHTML(loginSubmitText)}</button>
+${' '.repeat(indent + 2)}</div>
+${loginShowForgot ? `${' '.repeat(indent + 2)}<div class="form-links"><a href="${escapeAttr(loginForgotLink)}">${escapeHTML(loginForgotText)}</a></div>` : ''}
+${padding}</form>`
+    }
+    
+    case 'registerForm': {
+      const registerTitle = props.title || '用户注册'
+      const registerSubmitText = props.submitText || '注册'
+      const registerShowAgreement = props.showAgreement !== false
+      const registerAgreementText = props.agreementText || '我已阅读并同意'
+      const registerAgreementLink = props.agreementLink || '#'
+      const registerAgreementRequired = props.agreementRequired !== false
+      
+      return `${padding}<form class="${className}" :style="{ ${baseStyle} }" @submit.prevent="handleRegisterSubmit">
+${' '.repeat(indent + 2)}<h2 class="form-title">${escapeHTML(registerTitle)}</h2>
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="register_username">用户名</label>
+${' '.repeat(indent + 4)}<input type="text" id="register_username" v-model="registerForm.username" required placeholder="请输入用户名" />
+${' '.repeat(indent + 2)}</div>
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="register_email">邮箱</label>
+${' '.repeat(indent + 4)}<input type="email" id="register_email" v-model="registerForm.email" required placeholder="请输入邮箱" />
+${' '.repeat(indent + 2)}</div>
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="register_password">密码</label>
+${' '.repeat(indent + 4)}<input type="password" id="register_password" v-model="registerForm.password" required placeholder="请输入密码" />
+${' '.repeat(indent + 2)}</div>
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="register_confirm_password">确认密码</label>
+${' '.repeat(indent + 4)}<input type="password" id="register_confirm_password" v-model="registerForm.confirmPassword" required placeholder="请再次输入密码" />
+${' '.repeat(indent + 2)}</div>
+${registerShowAgreement ? `${' '.repeat(indent + 2)}<div class="form-group form-checkbox"><label><input type="checkbox" v-model="registerForm.agreement" ${registerAgreementRequired ? 'required' : ''}> ${escapeHTML(registerAgreementText)} <a href="${escapeAttr(registerAgreementLink)}">《用户协议》</a></label></div>` : ''}
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<button type="submit" class="btn-primary">${escapeHTML(registerSubmitText)}</button>
+${' '.repeat(indent + 2)}</div>
+${padding}</form>`
+    }
+    
+    case 'contactForm': {
+      const contactTitle = props.title || '联系我们'
+      const contactSubmitText = props.submitText || '提交'
+      
+      let formContent = `${' '.repeat(indent + 2)}<h2 class="form-title">${escapeHTML(contactTitle)}</h2>`
+      
+      if (props.showName !== false) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="contact_name">${escapeHTML(props.nameLabel || '姓名')}${props.nameRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<input type="text" id="contact_name" v-model="contactForm.name" ${props.nameRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.namePlaceholder || '请输入您的姓名')}" />
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      if (props.showEmail !== false) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="contact_email">${escapeHTML(props.emailLabel || '邮箱')}${props.emailRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<input type="email" id="contact_email" v-model="contactForm.email" ${props.emailRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.emailPlaceholder || '请输入您的邮箱')}" />
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      if (props.showPhone !== false) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="contact_phone">${escapeHTML(props.phoneLabel || '电话')}${props.phoneRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<input type="tel" id="contact_phone" v-model="contactForm.phone" ${props.phoneRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.phonePlaceholder || '请输入您的电话')}" />
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      if (props.showSubject !== false) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="contact_subject">${escapeHTML(props.subjectLabel || '主题')}${props.subjectRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<input type="text" id="contact_subject" v-model="contactForm.subject" ${props.subjectRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.subjectPlaceholder || '请输入主题')}" />
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      if (props.showMessage !== false) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="contact_message">${escapeHTML(props.messageLabel || '留言')}${props.messageRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<textarea id="contact_message" v-model="contactForm.message" :rows="${props.messageRows || 5}" ${props.messageRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.messagePlaceholder || '请输入留言内容')}"></textarea>
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<button type="submit" class="btn-primary">${escapeHTML(contactSubmitText)}</button>
+${' '.repeat(indent + 2)}</div>`
+      
+      return `${padding}<form class="${className}" :style="{ ${baseStyle} }" @submit.prevent="handleContactSubmit">
+${formContent}
+${padding}</form>`
+    }
+    
+    case 'searchForm': {
+      const searchPlaceholder = props.placeholder || '搜索...'
+      const searchButtonText = props.buttonText || '搜索'
+      const searchShowCategory = props.showCategory !== false
+      const searchCategoryLabel = props.categoryLabel || '分类'
+      
+      let formContent = ''
+      
+      if (searchShowCategory) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="search-category">
+${' '.repeat(indent + 4)}<label for="search_category">${escapeHTML(searchCategoryLabel)}:</label>
+${' '.repeat(indent + 4)}<select id="search_category" v-model="searchForm.category">`
+        
+        if (props.categoryOptions) {
+          const categoryOptions = props.categoryOptions.split('\n').filter(opt => opt.trim())
+          categoryOptions.forEach(opt => {
+            const [value, label] = opt.split('|')
+            const optValue = value?.trim() || ''
+            const optLabel = label?.trim() || optValue
+            formContent += `
+${' '.repeat(indent + 6)}<option :value="\`${escapeAttr(optValue)}\`">${escapeHTML(optLabel)}</option>`
+          })
+        }
+        
+        formContent += `
+${' '.repeat(indent + 4)}</select>
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      formContent += `
+${' '.repeat(indent + 2)}<div class="search-input-group">
+${' '.repeat(indent + 4)}<input type="search" v-model="searchForm.keyword" placeholder="${escapeAttr(searchPlaceholder)}" />
+${' '.repeat(indent + 4)}<button type="submit">${escapeHTML(searchButtonText)}</button>
+${' '.repeat(indent + 2)}</div>`
+      
+      return `${padding}<form class="${className}" :style="{ ${baseStyle} }" @submit.prevent="handleSearchSubmit">
+${formContent}
+${padding}</form>`
+    }
+    
+    case 'commentForm': {
+      const commentTitle = props.title || '发表评论'
+      const commentSubmitText = props.submitText || '提交评论'
+      
+      let formContent = `${' '.repeat(indent + 2)}<h3 class="form-title">${escapeHTML(commentTitle)}</h3>`
+      
+      if (props.showRating !== false) {
+        const maxRating = props.maxRating || 5
+        let ratingStars = ''
+        for (let i = 1; i <= maxRating; i++) {
+          ratingStars += `<span class="star" :data-value="${i}" @click="setRating(${i})">&#9733;</span>`
+        }
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label>${escapeHTML(props.ratingLabel || '评分')}:</label>
+${' '.repeat(indent + 4)}<div class="rating-input">${ratingStars}</div>
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      if (props.showAuthor !== false) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="comment_author">${escapeHTML(props.authorLabel || '昵称')}${props.authorRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<input type="text" id="comment_author" v-model="commentForm.author" ${props.authorRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.authorPlaceholder || '请输入昵称')}" />
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      if (props.showEmail !== false) {
+        formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="comment_email">${escapeHTML(props.emailLabel || '邮箱')}${props.emailRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<input type="email" id="comment_email" v-model="commentForm.email" ${props.emailRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.emailPlaceholder || '请输入邮箱（不公开）')}" />
+${' '.repeat(indent + 2)}</div>`
+      }
+      
+      formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="comment_content">${escapeHTML(props.messageLabel || '评论内容')}${props.messageRequired !== false ? '<span class="required">*</span>' : ''}</label>
+${' '.repeat(indent + 4)}<textarea id="comment_content" v-model="commentForm.content" :rows="${props.messageRows || 3}" ${props.messageRequired !== false ? 'required' : ''} placeholder="${escapeAttr(props.messagePlaceholder || '请输入您的评论...')}"></textarea>
+${' '.repeat(indent + 2)}</div>
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<button type="submit" class="btn-primary">${escapeHTML(commentSubmitText)}</button>
+${' '.repeat(indent + 2)}</div>`
+      
+      return `${padding}<form class="${className}" :style="{ ${baseStyle} }" @submit.prevent="handleCommentSubmit">
+${formContent}
+${padding}</form>`
+    }
+    
+    case 'customForm': {
+      const customTitle = props.title || '自定义表单'
+      const customSubmitText = props.submitText || '提交'
+      const customFormItems = props.formItems || []
+      
+      let formContent = `${' '.repeat(indent + 2)}<h2 class="form-title">${escapeHTML(customTitle)}</h2>`
+      
+      customFormItems.forEach((item, index) => {
+        const fieldId = `custom_${item.id || index}`
+        const requiredAttr = item.required ? 'required' : ''
+        const requiredMark = item.required ? '<span class="required">*</span>' : ''
+        
+        if (item.type === 'text' || item.type === 'email' || item.type === 'tel' || item.type === 'password') {
+          formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="${fieldId}">${escapeHTML(item.label)}${requiredMark}</label>
+${' '.repeat(indent + 4)}<input type="${escapeAttr(item.type)}" id="${fieldId}" v-model="customForm['${item.id}']" ${requiredAttr} placeholder="${escapeAttr(item.placeholder || '')}" />
+${' '.repeat(indent + 2)}</div>`
+        } else if (item.type === 'textarea') {
+          formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="${fieldId}">${escapeHTML(item.label)}${requiredMark}</label>
+${' '.repeat(indent + 4)}<textarea id="${fieldId}" v-model="customForm['${item.id}']" :rows="${item.rows || 4}" ${requiredAttr} placeholder="${escapeAttr(item.placeholder || '')}"></textarea>
+${' '.repeat(indent + 2)}</div>`
+        } else if (item.type === 'select') {
+          const options = item.options || []
+          formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label for="${fieldId}">${escapeHTML(item.label)}${requiredMark}</label>
+${' '.repeat(indent + 4)}<select id="${fieldId}" v-model="customForm['${item.id}']" ${requiredAttr}>
+${' '.repeat(indent + 6)}<option value="">请选择</option>
+${options.map(opt => `${' '.repeat(indent + 6)}<option :value="\`${escapeAttr(opt.value || opt)}\`">${escapeHTML(opt.label || opt.value || opt)}</option>`).join('\n')}
+${' '.repeat(indent + 4)}</select>
+${' '.repeat(indent + 2)}</div>`
+        } else if (item.type === 'checkbox') {
+          formContent += `
+${' '.repeat(indent + 2)}<div class="form-group form-checkbox">
+${' '.repeat(indent + 4)}<label><input type="checkbox" v-model="customForm['${item.id}']" ${requiredAttr}> ${escapeHTML(item.label)}</label>
+${' '.repeat(indent + 2)}</div>`
+        } else if (item.type === 'radio') {
+          const options = item.options || []
+          formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<label>${escapeHTML(item.label)}${requiredMark}</label>
+${' '.repeat(indent + 4)}<div class="radio-group">
+${options.map(opt => `
+${' '.repeat(indent + 6)}<label class="radio-label">
+${' '.repeat(indent + 8)}<input type="radio" v-model="customForm['${item.id}']" :value="\`${escapeAttr(opt.value || opt)}\`" ${requiredAttr}>
+${' '.repeat(indent + 8)}${escapeHTML(opt.label || opt.value || opt)}
+${' '.repeat(indent + 6)}</label>`).join('\n')}
+${' '.repeat(indent + 4)}</div>
+${' '.repeat(indent + 2)}</div>`
+        } else if (item.type === 'description') {
+          const textColor = item.color || '#333333'
+          const fontSize = item.fontSize || 14
+          const textAlign = item.textAlign || 'left'
+          const bgColor = item.bgColor || '#f5f5f5'
+          formContent += `
+${' '.repeat(indent + 2)}<div class="form-description" :style="{ color: '${textColor}', fontSize: '${fontSize}px', textAlign: '${textAlign}', backgroundColor: '${bgColor}' }">
+${' '.repeat(indent + 4)}<p>${escapeHTML(item.label || '')}</p>
+${' '.repeat(indent + 2)}</div>`
+        }
+      })
+      
+      formContent += `
+${' '.repeat(indent + 2)}<div class="form-group">
+${' '.repeat(indent + 4)}<button type="submit" class="btn-primary">${escapeHTML(customSubmitText)}</button>
+${' '.repeat(indent + 2)}</div>`
+      
+      return `${padding}<form class="${className}" :style="{ ${baseStyle} }" @submit.prevent="handleCustomFormSubmit">
+${formContent}
+${padding}</form>`
+    }
+    
+    default:
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }"></div>`
+  }
+}
+
+/**
+ * 生成 Vue 组件样式
+ * @param {Array} components - 组件列表
+ * @returns {string}
+ */
+function generateVueStyles(components) {
+  return components.map(comp => {
+    const className = generateComponentId(comp)
+    const style = comp.style || {}
+    const cssParts = []
+    
+    cssParts.push(`.${className} {`)
+    
+    // 按钮hover和active样式
+    if (comp.type === 'button') {
+      const hoverBgColor = style.hoverBackgroundColor || '#40a9ff'
+      const activeBgColor = style.activeBackgroundColor || '#096dd9'
+      
+      cssParts.push(`  &:hover {`)
+      cssParts.push(`    background-color: ${hoverBgColor};`)
+      cssParts.push(`  }`)
+      cssParts.push(`  &:active {`)
+      cssParts.push(`    background-color: ${activeBgColor};`)
+      cssParts.push(`  }`)
+    }
+    
+    // 边框样式
+    const border = getBorderCSS(style)
+    if (border) {
+      cssParts.push(`  border: ${border};`)
+    }
+    
+    cssParts.push(`}`)
+    
+    return cssParts.join('\n')
+  }).join('\n\n')
+}
+
+/**
+ * 生成 Vue 组件脚本
+ * @param {Array} components - 组件列表
+ * @returns {string}
+ */
+function generateVueScript(components) {
+  const hasTabs = components.some(c => c.type === 'tabs')
+  const hasDatetime = components.some(c => c.type === 'datetime')
+  const hasForms = components.some(c => ['loginForm', 'registerForm', 'contactForm', 'searchForm', 'commentForm', 'customForm'].includes(c.type))
+  
+  let scriptLines = []
+  
+  // 导入语句
+  scriptLines.push('import { ref, onMounted, onUnmounted } from \'vue\'')
+  
+  // 响应式数据
+  if (hasForms) {
+    scriptLines.push('')
+    scriptLines.push('// 表单数据')
+    scriptLines.push('const loginForm = ref({ username: \'\', password: \'\', remember: false })')
+    scriptLines.push('const registerForm = ref({ username: \'\', email: \'\', password: \'\', confirmPassword: \'\', agreement: false })')
+    scriptLines.push('const contactForm = ref({ name: \'\', email: \'\', phone: \'\', subject: \'\', message: \'\' })')
+    scriptLines.push('const searchForm = ref({ keyword: \'\', category: \'\' })')
+    scriptLines.push('const commentForm = ref({ author: \'\', email: \'\', content: \'\', rating: 0 })')
+    scriptLines.push('const customForm = ref({})')
+  }
+  
+  if (hasDatetime) {
+    scriptLines.push('')
+    scriptLines.push('// 日期时间组件')
+    scriptLines.push('const datetimeId = ref(\'datetime-\' + Date.now())')
+    scriptLines.push('const datetimeRef = ref(null)')
+    scriptLines.push('let datetimeInterval = null')
+  }
+  
+  // 方法
+  scriptLines.push('')
+  scriptLines.push('// 导航方法')
+  scriptLines.push('function navigateTo(url, target) {')
+  scriptLines.push('  if (url && url !== \'#\') {')
+  scriptLines.push('    window.open(url, target)')
+  scriptLines.push('  }')
+  scriptLines.push('}')
+  
+  scriptLines.push('')
+  scriptLines.push('// 弹窗提示')
+  scriptLines.push('function showAlert(message) {')
+  scriptLines.push('  alert(message)')
+  scriptLines.push('}')
+  
+  scriptLines.push('')
+  scriptLines.push('// API调用')
+  scriptLines.push('async function callAPI(url, method, bodyStr) {')
+  scriptLines.push('  if (!url) {')
+  scriptLines.push('    alert(\'请配置 API 地址\')')
+  scriptLines.push('    return')
+  scriptLines.push('  }')
+  scriptLines.push('  try {')
+  scriptLines.push('    const body = bodyStr ? JSON.parse(bodyStr) : undefined')
+  scriptLines.push('    const response = await fetch(url, {')
+  scriptLines.push('      method: method || \'POST\',')
+  scriptLines.push('      headers: { \'Content-Type\': \'application/json\' },')
+  scriptLines.push('      body: body ? JSON.stringify(body) : undefined')
+  scriptLines.push('    })')
+  scriptLines.push('    const result = await response.json()')
+  scriptLines.push('    alert(\'API 调用成功!\\n\' + JSON.stringify(result))')
+  scriptLines.push('  } catch (error) {')
+  scriptLines.push('    alert(\'API 调用失败: \' + error.message)')
+  scriptLines.push('  }')
+  scriptLines.push('}')
+  
+  if (hasTabs) {
+    scriptLines.push('')
+    scriptLines.push('// 切换标签页')
+    scriptLines.push('function switchTab(widgetClass, tabKey) {')
+    scriptLines.push('  const widget = document.querySelector(\'.\' + widgetClass)')
+    scriptLines.push('  if (!widget) return')
+    scriptLines.push('  const tabItems = widget.querySelectorAll(\'.tab-item\')')
+    scriptLines.push('  const tabPanes = widget.querySelectorAll(\'.tab-pane\')')
+    scriptLines.push('  tabItems.forEach(item => item.classList.remove(\'active\'))')
+    scriptLines.push('  tabPanes.forEach(pane => pane.classList.remove(\'active\'))')
+    scriptLines.push('  widget.querySelector(\'.tab-item[data-tab=\"\' + tabKey + \'\"]\')?.classList.add(\'active\')')
+    scriptLines.push('  widget.querySelector(\'.tab-pane[data-tab=\"\' + tabKey + \'\"]\')?.classList.add(\'active\')')
+    scriptLines.push('}')
+  }
+  
+  if (hasForms) {
+    scriptLines.push('')
+    scriptLines.push('// 表单提交方法')
+    scriptLines.push('async function handleLoginSubmit() {')
+    scriptLines.push('  console.log(\'登录提交:\', loginForm.value)')
+    scriptLines.push('  // TODO: 调用登录 API')
+    scriptLines.push('}')
+    
+    scriptLines.push('')
+    scriptLines.push('async function handleRegisterSubmit() {')
+    scriptLines.push('  console.log(\'注册提交:\', registerForm.value)')
+    scriptLines.push('  // TODO: 调用注册 API')
+    scriptLines.push('}')
+    
+    scriptLines.push('')
+    scriptLines.push('async function handleContactSubmit() {')
+    scriptLines.push('  console.log(\'联系提交:\', contactForm.value)')
+    scriptLines.push('  // TODO: 调用联系 API')
+    scriptLines.push('}')
+    
+    scriptLines.push('')
+    scriptLines.push('async function handleSearchSubmit() {')
+    scriptLines.push('  console.log(\'搜索提交:\', searchForm.value)')
+    scriptLines.push('  // TODO: 调用搜索 API')
+    scriptLines.push('}')
+    
+    scriptLines.push('')
+    scriptLines.push('async function handleCommentSubmit() {')
+    scriptLines.push('  console.log(\'评论提交:\', commentForm.value)')
+    scriptLines.push('  // TODO: 调用评论 API')
+    scriptLines.push('}')
+    
+    scriptLines.push('')
+    scriptLines.push('async function handleCustomFormSubmit() {')
+    scriptLines.push('  console.log(\'自定义表单提交:\', customForm.value)')
+    scriptLines.push('  // TODO: 调用表单 API')
+    scriptLines.push('}')
+    
+    scriptLines.push('')
+    scriptLines.push('// 设置评分')
+    scriptLines.push('function setRating(value) {')
+    scriptLines.push('  commentForm.value.rating = value')
+    scriptLines.push('}')
+  }
+  
+  if (hasDatetime) {
+    scriptLines.push('')
+    scriptLines.push('// 更新日期时间')
+    scriptLines.push('function updateDatetime() {')
+    scriptLines.push('  const now = new Date()')
+    scriptLines.push('  const year = now.getFullYear()')
+    scriptLines.push('  const month = String(now.getMonth() + 1).padStart(2, \'0\')')
+    scriptLines.push('  const day = String(now.getDate()).padStart(2, \'0\')')
+    scriptLines.push('  const hours = now.getHours()')
+    scriptLines.push('  const minutes = String(now.getMinutes()).padStart(2, \'0\')')
+    scriptLines.push('  const seconds = String(now.getSeconds()).padStart(2, \'0\')')
+    scriptLines.push('  const weekDays = [\'周日\', \'周一\', \'周二\', \'周三\', \'周四\', \'周五\', \'周六\']')
+    scriptLines.push('  const week = weekDays[now.getDay()]')
+    scriptLines.push('  let dateTimeText = year + \'-\' + month + \'-\' + day + \' \' + hours + \':\' + minutes + \':\' + seconds')
+    scriptLines.push('  dateTimeText += \' \' + week')
+    scriptLines.push('  const el = document.getElementById(datetimeId.value)')
+    scriptLines.push('  if (el) el.textContent = dateTimeText')
+    scriptLines.push('}')
+  }
+  
+  // 生命周期
+  scriptLines.push('')
+  scriptLines.push('onMounted(() => {')
+  
+  if (hasDatetime) {
+    scriptLines.push('  updateDatetime()')
+    scriptLines.push('  datetimeInterval = setInterval(updateDatetime, 1000)')
+  }
+  
+  scriptLines.push('})')
+  
+  scriptLines.push('')
+  scriptLines.push('onUnmounted(() => {')
+  
+  if (hasDatetime) {
+    scriptLines.push('  if (datetimeInterval) clearInterval(datetimeInterval)')
+  }
+  
+  scriptLines.push('})')
+  
+  return scriptLines.join('\n')
+}
+
+/**
+ * 导出 Vue 文件（自动检测是否包含本地图片）
+ * @param {Object} pageData - 页面数据
+ * @param {string} filename - 文件名（不含扩展名）
+ */
+export async function exportVue(pageData, filename = 'page') {
+  // 检查是否包含本地图片
+  if (hasLocalImages(pageData)) {
+    await exportVueWithImages(pageData, filename)
+  } else {
+    const vueCode = generateVueComponent(pageData)
+    downloadVue(vueCode, `${filename}.vue`)
+  }
+}
+
+/**
+ * 导出 Vue 文件（仅 Vue 组件，不含本地图片）
+ * @param {string} vueCode - Vue 代码内容
+ * @param {string} filename - 文件名
+ */
+export function downloadVue(vueCode, filename = 'page.vue') {
+  const blob = new Blob([vueCode], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * 导出 Vue 文件（包含本地图片打包为 ZIP）
+ * @param {Object} pageData - 页面数据
+ * @param {string} filename - 文件名（不含扩展名）
+ */
+export async function exportVueWithImages(pageData, filename = 'page') {
+  const zip = new JSZip()
+  
+  // 收集本地图片
+  const localImages = []
+  const imagePaths = {}
+  
+  pageData.components.forEach((comp, index) => {
+    // 处理图片组件的本地图片
+    if (comp.type === 'image' && comp.props?.localImage && comp.props?.src) {
+      const imageData = extractBase64Image(comp.props.src)
+      if (imageData) {
+        const originalName = comp.props.imageFileName || `image_${index}`
+        const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
+        const imageFileName = `images/${safeName}.${imageData.extension}`
+        
+        localImages.push({
+          filename: imageFileName,
+          data: imageData.data
+        })
+        
+        imagePaths[comp.id] = imageFileName
+      }
+    }
+    
+    // 处理标签页组件的本地图片
+    if (comp.type === 'tabs' && comp.props?.tabImages) {
+      const tabImages = comp.props.tabImages
+      Object.keys(tabImages).forEach((tabKey, tabIndex) => {
+        const imageConfig = tabImages[tabKey]
+        if (imageConfig.isLocalImage && imageConfig.url) {
+          const imageData = extractBase64Image(imageConfig.url)
+          if (imageData) {
+            const originalName = imageConfig.fileName || `tab_image_${index}_${tabIndex}`
+            const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
+            const imageFileName = `images/${safeName}.${imageData.extension}`
+            
+            localImages.push({
+              filename: imageFileName,
+              data: imageData.data
+            })
+            
+            imagePaths[`${comp.id}_${tabKey}`] = imageFileName
+          }
+        }
+      })
+    }
+  })
+  
+  // 添加图片到 ZIP
+  if (localImages.length > 0) {
+    const imagesFolder = zip.folder('images')
+    localImages.forEach(img => {
+      imagesFolder.file(img.filename.replace('images/', ''), img.data)
+    })
+  }
+  
+  // 生成 Vue 组件
+  const vueCode = generateVueComponent(pageData, imagePaths)
+  zip.file(`${filename}.vue`, vueCode)
+  
+  // 生成 package.json 用于 Vue 项目
+  const packageJson = {
+    "name": filename,
+    "version": "1.0.0",
+    "description": "Exported from Visual Web Editor",
+    "main": "index.js",
+    "scripts": {
+      "dev": "vite",
+      "build": "vite build"
+    },
+    "dependencies": {
+      "vue": "^3.4.21"
+    },
+    "devDependencies": {
+      "@vitejs/plugin-vue": "^5.0.4",
+      "vite": "^5.1.6"
+    }
+  }
+  zip.file('package.json', JSON.stringify(packageJson, null, 2))
+  
+  // 生成 vite.config.js
+  const viteConfig = `import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': '/src'
+    }
+  }
+})
+`
+  zip.file('vite.config.js', viteConfig)
+  
+  // 生成 index.html
+  const indexHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${filename}</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
+`
+  zip.file('index.html', indexHtml)
+  
+  // 生成 src/main.js
+  const mainJs = `import { createApp } from 'vue'
+import App from './App.vue'
+
+createApp(App).mount('#app')
+`
+  zip.file('src/main.js', mainJs)
+  
+  // 生成 src/App.vue
+  const appVue = `<template>
+  <${filename.charAt(0).toUpperCase() + filename.slice(1)} />
+</template>
+
+<script setup>
+import ${filename.charAt(0).toUpperCase() + filename.slice(1)} from './components/${filename}.vue'
+</script>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+}
+</style>
+`
+  zip.file('src/App.vue', appVue)
+  
+  // 创建组件目录并移动 Vue 文件
+  zip.file(`src/components/${filename}.vue`, vueCode)
+  
+  // 生成并下载 ZIP
+  const content = await zip.generateAsync({ type: 'blob' })
+  saveAs(content, `${filename}_vue.zip`)
+}

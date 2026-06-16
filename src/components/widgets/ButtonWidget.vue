@@ -17,6 +17,9 @@ const backgroundColor = computed(() => props.component.style?.backgroundColor ||
 const hoverBackgroundColor = computed(() => props.component.style?.hoverBackgroundColor || '#40a9ff')
 const activeBackgroundColor = computed(() => props.component.style?.activeBackgroundColor || '#096dd9')
 
+// 圆角
+const borderRadius = computed(() => props.component.style?.borderRadius ? `${props.component.style.borderRadius}px` : '0')
+
 // 处理按钮点击
 function handleClick() {
   const btnProps = props.component.props || {}
@@ -77,7 +80,8 @@ async function callAPI(config) {
       textAlign,
       '--bg-color': backgroundColor,
       '--hover-bg-color': hoverBackgroundColor,
-      '--active-bg-color': activeBackgroundColor
+      '--active-bg-color': activeBackgroundColor,
+      borderRadius
     }" 
     @click="handleClick"
   >

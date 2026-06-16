@@ -26,10 +26,17 @@ const props = defineProps({
 
 const { 
   selectComponent, 
+  selectComponents,
   moveComponent, 
+  moveComponents,
+  getChildrenInsideComponent,
   previewMode, 
   updateComponentProps,
-  saveMoveHistory
+  saveMoveHistory,
+  selectedIds,
+  draggingId,
+  setDraggingId,
+  clearDraggingId
 } = useEditor()
 
 // 计算阴影样式
@@ -127,15 +134,19 @@ const startLeft = ref(0)
 const startTop = ref(0)
 const originalLeft = ref(0)
 const originalTop = ref(0)
+const originalPositions = ref({})
+const isCtrlDragging = ref(false) // 记录是否按Ctrl拖拽
 
 // 开始拖拽
 function handleMouseDown(event) {
   if (previewMode.value) return
-  if (event.button !== 0) return // 只响应左键
+  if (event.button !== 0) return
 
   event.stopPropagation()
-  selectComponent(props.component.id)
 
+  const multiSelect = event.ctrlKey || event.metaKey
+  isCtrlDragging.value = multiSelect // 记录Ctrl状态
+  
   isDragging.value = true
   dragStartX.value = event.clientX
   dragStartY.value = event.clientY
@@ -143,8 +154,36 @@ function handleMouseDown(event) {
   startTop.value = props.component.top
   originalLeft.value = props.component.left
   originalTop.value = props.component.top
+  
+  // 设置当前拖拽的组件 ID
+  setDraggingId(props.component.id)
+  
+  // 如果按了Ctrl，不改变选中状态，只移动当前组件
+  if (multiSelect) {
+    // 不调用 selectComponent，保持现有选中状态
+    originalPositions.value = {
+      [props.component.id]: { left: props.component.left, top: props.component.top }
+    }
+  } else {
+    // 正常情况：选择组件及其子组件
+    selectComponent(props.component.id, false)
+    const children = getChildrenInsideComponent(props.component.id)
+    if (children.length > 0) {
+      const allChildren = children.map(c => c.id)
+      const allIds = [props.component.id, ...allChildren]
+      selectComponents(allIds)
+      originalPositions.value = {}
+      allIds.forEach(id => {
+        const comp = children.find(c => c.id === id) || props.component
+        originalPositions.value[id] = { left: comp.left, top: comp.top }
+      })
+    } else {
+      originalPositions.value = {
+        [props.component.id]: { left: props.component.left, top: props.component.top }
+      }
+    }
+  }
 
-  // 保存移动前的状态
   saveMoveHistory()
 
   document.addEventListener('mousemove', handleMouseMove)
@@ -159,25 +198,42 @@ function handleMouseMove(event) {
   const deltaX = (event.clientX - dragStartX.value) / zoom.value
   const deltaY = (event.clientY - dragStartY.value) / zoom.value
 
-  moveComponent(
-    props.component.id,
-    startLeft.value + deltaX,
-    startTop.value + deltaY,
-    originalLeft.value,
-    originalTop.value
-  )
+  // 如果是Ctrl拖拽，只移动当前组件
+  if (isCtrlDragging.value) {
+    moveComponent(
+      props.component.id,
+      originalLeft.value + deltaX,
+      originalTop.value + deltaY,
+      originalLeft.value,
+      originalTop.value
+    )
+  } else {
+    const currentIds = [...selectedIds.value]
+    if (currentIds.length > 1) {
+      moveComponents(currentIds, deltaX, deltaY, originalPositions.value)
+    } else {
+      moveComponent(
+        props.component.id,
+        startLeft.value + deltaX,
+        startTop.value + deltaY,
+        originalLeft.value,
+        originalTop.value
+      )
+    }
+  }
 }
 
 // 结束拖拽
 function handleMouseUp() {
   isDragging.value = false
+  isCtrlDragging.value = false
+  clearDraggingId()
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
 }
 
 // 点击组件
 function handleClick(event) {
-  // 在编辑模式下，阻止链接类型组件的默认跳转行为
   if (!previewMode.value) {
     const linkTypes = ['link']
     if (linkTypes.includes(props.component.type)) {
@@ -185,7 +241,19 @@ function handleClick(event) {
     }
   }
   event.stopPropagation()
-  selectComponent(props.component.id)
+  
+  const multiSelect = event.ctrlKey || event.metaKey
+  
+  if (!multiSelect) {
+    const children = getChildrenInsideComponent(props.component.id)
+    if (children.length > 0) {
+      const allIds = [props.component.id, ...children.map(c => c.id)]
+      selectComponents(allIds)
+      return
+    }
+  }
+  
+  selectComponent(props.component.id, multiSelect)
 }
 
 // 双击编辑 - 支持文本、按钮、链接组件
@@ -283,7 +351,7 @@ function cancelEdit() {
     </template>
 
     <!-- 选中边框和调整手柄 -->
-    <template v-if="selected && !previewMode && !isEditing">
+    <template v-if="(!previewMode && !isEditing) && (props.component.id === draggingId || (selected && !draggingId))">
       <div class="selection-border"></div>
       <ResizeHandle :component="component" />
     </template>
@@ -294,6 +362,7 @@ function cancelEdit() {
 .canvas-item {
   cursor: move;
   user-select: none;
+  overflow: hidden;
 }
 
 .canvas-item.dragging {

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useEditor } from '../../stores/editor'
-import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages } from '../../utils/htmlGenerator'
+import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages, exportVue } from '../../utils/htmlGenerator'
 
 const { page, previewMode, togglePreviewMode, setZoom, zoom, deselectComponent, exportPageJSON, exportLayoutJSON, importPageJSON, importLayoutJSON, undo, redo, canUndo, canRedo, guidesVisible, guidesList, snapEnabled, toggleGuides, toggleSnap, addHorizontalGuide, addVerticalGuide, addCircleGuide, addCenterGuides, addRotatableLineGuide, clearGuides } = useEditor()
 
@@ -185,6 +185,16 @@ async function handleExport() {
   } catch (error) {
     console.error('导出失败:', error)
     alert('导出失败，请重试')
+  }
+}
+
+// 导出Vue组件（自动检测是否包含本地图片）
+async function handleExportVue() {
+  try {
+    await exportVue(page)
+  } catch (error) {
+    console.error('导出Vue失败:', error)
+    alert('导出Vue失败，请重试')
   }
 }
 
@@ -403,6 +413,7 @@ function closePageSettings() {
           <button class="dropdown-item" @click="() => { handleExportLayoutJSON(); showExportMenu = false }">
             导出布局
           </button>
+          
         </div>
       </div>
 
@@ -414,6 +425,11 @@ function closePageSettings() {
       <!-- 导出按钮 -->
       <button class="btn btn-primary" @click="handleExport" v-show="!previewMode">
         导出 HTML
+      </button>
+
+      <!-- 导出Vue按钮 -->
+      <button class="btn btn-secondary" @click="handleExportVue" v-show="!previewMode">
+        导出 Vue
       </button>
 
       <!-- 隐藏的文件输入 -->

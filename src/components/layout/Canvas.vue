@@ -8,6 +8,7 @@ const {
   page,
   zoom,
   selectedId,
+  selectedIds,
   previewMode,
   addComponent,
   deselectComponent,
@@ -17,6 +18,8 @@ const {
 
 // 画布 ref
 const canvasRef = ref(null)
+
+
 
 // 计算画布样式
 const canvasStyle = computed(() => ({
@@ -78,10 +81,11 @@ function handleWheel(event) {
     setZoom(newZoom)
   }
 }
+
 </script>
 
 <template>
-  <main class="canvas-wrapper" @click="handleCanvasClick" @wheel="handleWheel">
+  <main class="canvas-wrapper" :class="{ 'preview-mode': previewMode }" @click="handleCanvasClick" @wheel="handleWheel">
     <div class="canvas-scaler" :style="canvasContainerStyle">
       <div
         ref="canvasRef"
@@ -97,7 +101,7 @@ function handleWheel(event) {
             v-for="component in sortedComponents"
             :key="component.id"
             :component="component"
-            :selected="component.id === selectedId"
+            :selected="selectedIds.includes(component.id)"
           />
         </div>
 
@@ -109,6 +113,8 @@ function handleWheel(event) {
           <p>👈 从左侧拖拽组件到这里</p>
           <p class="empty-hint">或点击组件列表直接添加</p>
         </div>
+
+        
       </div>
     </div>
   </main>
@@ -118,15 +124,21 @@ function handleWheel(event) {
 .canvas-wrapper {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background-color: #e5e5e5;
   overflow: auto;
   padding: 40px;
 }
 
+.canvas-wrapper.preview-mode {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0;
+}
+
 .canvas-scaler {
-  transform-origin: center center;
+  transform-origin: top center;
 }
 
 .canvas {

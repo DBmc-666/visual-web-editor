@@ -458,6 +458,9 @@ const state = reactive({
   // 选中的组件 ID
   selectedId: null,
 
+  // 多选模式下选中的组件 ID 列表
+  selectedIds: [],
+
   // 缩放比例
   zoom: 1,
 
@@ -466,6 +469,9 @@ const state = reactive({
 
   // 拖拽中的组件类型
   draggingType: null,
+
+  // 当前正在拖拽的组件 ID
+  draggingId: null,
 
   // 撤销栈
   undoStack: [],
@@ -492,6 +498,15 @@ const state = reactive({
     snapBlockDistance: 30,
     // 选中的辅助线ID
     selectedGuideId: null
+  },
+
+  // 框选状态
+  marqueeSelect: {
+    active: false,
+    startX: 0,
+    startY: 0,
+    endX: 0,
+    endY: 0
   }
 })
 
@@ -594,13 +609,108 @@ const actions = {
   },
 
   // 选择组件
-  selectComponent(id) {
-    state.selectedId = id
+  selectComponent(id, multiSelect = false) {
+    if (multiSelect) {
+      const index = state.selectedIds.indexOf(id)
+      if (index > -1) {
+        state.selectedIds.splice(index, 1)
+      } else {
+        state.selectedIds.push(id)
+      }
+      state.selectedId = id
+    } else {
+      state.selectedId = id
+      state.selectedIds = [id]
+    }
   },
 
   // 取消选择
   deselectComponent() {
     state.selectedId = null
+    state.selectedIds = []
+  },
+
+  // 批量选择组件
+  selectComponents(ids) {
+    state.selectedIds = [...ids]
+    state.selectedId = ids[0] || null
+  },
+
+  // 获取选中的所有组件
+  getSelectedComponents() {
+    return state.selectedIds.map(id => 
+      state.page.components.find(c => c.id === id)
+    ).filter(Boolean)
+  },
+
+  // 框选组件
+  marqueeSelectComponents(startX, startY, endX, zoom) {
+    const rect = {
+      x: Math.min(startX, endX) / zoom,
+      y: Math.min(startY, endY) / zoom,
+      width: Math.abs(endX - startX) / zoom,
+      height: Math.abs(endY - startY) / zoom
+    }
+
+    const selected = state.page.components.filter(comp => {
+      return (
+        comp.left >= rect.x &&
+        comp.top >= rect.y &&
+        comp.left + comp.width <= rect.x + rect.width &&
+        comp.top + comp.height <= rect.y + rect.height
+      )
+    })
+
+    if (selected.length > 0) {
+      state.selectedIds = selected.map(c => c.id)
+      state.selectedId = selected[0].id
+    }
+  },
+
+  // 设置框选状态
+  setMarqueeSelect(active, startX = 0, startY = 0, endX = 0, endY = 0) {
+    state.marqueeSelect = { active, startX, startY, endX, endY }
+  },
+
+  // 获取框选区域内完全包含的子组件
+  getChildrenInsideComponent(parentId) {
+    const parent = state.page.components.find(c => c.id === parentId)
+    if (!parent) return []
+
+    return state.page.components.filter(comp => {
+      if (comp.id === parentId) return false
+      return (
+        comp.left >= parent.left &&
+        comp.top >= parent.top &&
+        comp.left + comp.width <= parent.left + parent.width &&
+        comp.top + comp.height <= parent.top + parent.height
+      )
+    })
+  },
+
+  // 移动多个组件
+  moveComponents(ids, deltaX, deltaY, originalPositions = {}) {
+    ids.forEach(id => {
+      const component = state.page.components.find(c => c.id === id)
+      if (component) {
+        const originalLeft = originalPositions[id]?.left ?? component.left
+        const originalTop = originalPositions[id]?.top ?? component.top
+        
+        const snapResult = state.guides.snapEnabled ? 
+          actions.getSnapPosition(
+            originalLeft + deltaX,
+            originalTop + deltaY,
+            component.width,
+            component.height,
+            originalLeft,
+            originalTop
+          ) : 
+          { x: originalLeft + deltaX, y: originalTop + deltaY }
+        
+        component.left = snapResult.x
+        component.top = snapResult.y
+      }
+    })
   },
 
   // 更新组件属性
@@ -626,6 +736,16 @@ const actions = {
   // 保存移动历史记录（用于拖拽开始时调用）
   saveMoveHistory() {
     saveHistory('moveComponent', state.selectedId)
+  },
+
+  // 设置当前拖拽的组件 ID
+  setDraggingId(id) {
+    state.draggingId = id
+  },
+
+  // 清除拖拽状态
+  clearDraggingId() {
+    state.draggingId = null
   },
 
   // 保存拉伸历史记录（用于拉伸开始时调用）
@@ -1269,10 +1389,12 @@ export function useEditor() {
     // 状态（只读）
     page: state.page,
     selectedId: computed(() => state.selectedId),
+    selectedIds: computed(() => state.selectedIds),
     selectedComponent,
     zoom: computed(() => state.zoom),
     previewMode: computed(() => state.previewMode),
     draggingType: computed(() => state.draggingType),
+    draggingId: computed(() => state.draggingId),
     componentCount,
     
     // 辅助线状态
@@ -1284,6 +1406,9 @@ export function useEditor() {
     snapMode: computed(() => state.guides.snapMode),
     snapBlockDistance: computed(() => state.guides.snapBlockDistance),
     selectedGuideId: computed(() => state.guides.selectedGuideId),
+
+    // 框选状态
+    marqueeSelect: computed(() => state.marqueeSelect),
 
     // 方法
     ...actions
