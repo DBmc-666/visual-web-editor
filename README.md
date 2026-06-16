@@ -36,21 +36,20 @@ npm run preview
 4. 点击预览按钮查看最终效果
 5. 点击导出，生成并下载完整 HTML 文件
 
-## 📁 项目结构
-
-`src/
-├── assets/              # 静态资源
-│   └── styles/          # 全局公共样式
-├── components/          # 通用 Vue 组件
-│   ├── canvas/          # 画布核心组件
-│   ├── layout/          # 页面布局组件
-│   ├── panels/          # 侧边栏、属性面板
-│   └── widgets/         # 可拖拽业务组件
-├── composables/         # 组合式工具函数
-├── stores/              # 全局状态管理
-├── utils/               # 通用工具方法
-├── App.vue              # 根组件
-└── main.js              # 项目入口文件
+## 项目结构
+`src/`
+├── assets/        # 静态资源
+│   └── styles/   # 全局公共样式
+├── components/    # 通用 Vue 组件
+│   ├── canvas/    # 画布核心组件
+│   ├── layout/    # 页面布局组件
+│   ├── panels/    # 侧边栏、属性面板
+│   └── widgets/   # 可拖拽业务组件
+├── composables/   # 组合式工具函数
+├── stores/        # 全局状态管理
+├── utils/         # 通用工具方法
+├── App.vue        # 根组件
+└── main.js        # 项目入口文件
 # 组件列表
 
 # 基础组件
