@@ -1058,8 +1058,8 @@ function generatePageBackgroundCSS(pageData) {
 export function generatePageHTML(pageData, imagePaths = {}) {
   const { width = 1200, height = 800, backgroundColor = '#ffffff', components = [] } = pageData
 
-  // 只获取顶层组件（没有父容器的组件）
-  const topLevelComponents = components.filter(comp => !comp.parentId)
+  // 只获取顶层组件（没有父容器的组件）；隐藏的组件不参与导出
+  const topLevelComponents = components.filter(comp => !comp.parentId && comp.visible !== false)
 
   // 先生成所有组件的HTML和脚本，确保id一致
   const componentsData = topLevelComponents.map(comp => 
@@ -1075,8 +1075,8 @@ export function generatePageHTML(pageData, imagePaths = {}) {
     return [r.script]
   })
 
-  // 生成组件CSS
-  const componentsCSS = components.map(comp => {
+  // 生成组件CSS（隐藏组件不参与导出，避免产生孤儿样式）
+  const componentsCSS = topLevelComponents.map(comp => {
     return generateComponentCSS(comp, width, height)
   }).join('\n\n')
 
@@ -1766,12 +1766,15 @@ export function generateVueComponent(pageData, imagePaths = {}) {
   
   // 生成组件模板内容
   const templateContent = generateVueTemplate(components, imagePaths, width, height)
-  
+
+  // 隐藏组件不参与导出（避免孤儿样式与多余脚本）
+  const visibleComponents = components.filter(comp => comp.visible !== false)
+
   // 生成组件样式
-  const styleContent = generateVueStyles(components)
+  const styleContent = generateVueStyles(visibleComponents)
   
   // 生成脚本部分
-  const scriptContent = generateVueScript(components)
+  const scriptContent = generateVueScript(visibleComponents)
 
   const bgType = pageData.backgroundType || 'solid'
   const bgStart = pageData.backgroundGradientStart || '#ffffff'
@@ -2060,7 +2063,7 @@ ${styleContent}
  * @returns {string}
  */
 function generateVueTemplate(components, imagePaths, pageWidth, pageHeight) {
-  const topLevelComponents = components.filter(comp => !comp.parentId)
+  const topLevelComponents = components.filter(comp => !comp.parentId && comp.visible !== false)
   return topLevelComponents.map(comp => 
     generateVueComponentTemplate(comp, components, imagePaths, 2, pageWidth, pageHeight)
   ).join('\n')

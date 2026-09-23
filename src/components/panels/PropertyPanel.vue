@@ -582,9 +582,11 @@ function getStyleValue(key) {
 
 // 更新组件层级
 function updateZIndex(zIndex) {
-  if (selectedId.value) {
-    updateComponentZIndex(selectedId.value, zIndex)
-  }
+  if (!selectedId.value) return
+  const value = Number(zIndex)
+  // 输入框清空时会得到 NaN，忽略以免层级被写成 NaN
+  if (!Number.isFinite(value)) return
+  updateComponentZIndex(selectedId.value, value)
 }
 
 // 获取属性值（支持嵌套属性）
@@ -1467,7 +1469,7 @@ const shadowCSS = computed(() => {
         <h4 class="section-title">📊 层级设置</h4>
         <div class="property-list">
           <div class="property-row">
-            <label>层级（1-5）</label>
+            <label>层级（越大越靠上）</label>
             <div class="z-index-selector">
               <button
                 v-for="level in 5"
@@ -1477,7 +1479,19 @@ const shadowCSS = computed(() => {
               >
                 {{ level }}
               </button>
+              <input
+                type="number"
+                class="input z-index-input"
+                min="1"
+                max="999"
+                :value="selectedComponent.zIndex"
+                @input="updateZIndex(Number($event.target.value))"
+                title="直接输入层级值（图层面板重排后可能出现较大的连续值）"
+              />
             </div>
+          </div>
+          <div class="property-hint">
+            提示：需要精细调整叠放顺序时，用左侧「🧩 图层」标签页拖拽排序更直观
           </div>
         </div>
       </div>
@@ -2271,7 +2285,23 @@ const shadowCSS = computed(() => {
 /* 层级选择器 */
 .z-index-selector {
   display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.z-index-input {
+  width: 56px;
+  height: 32px;
+  padding: 0 6px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.property-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 .z-index-selector button {

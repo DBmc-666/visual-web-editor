@@ -466,7 +466,10 @@ export function createComponent(type) {
     style: { ...defaults.style },
     props: { ...defaults.props },
     // 层级（纯色背景默认1级，其他组件默认3级）
-    zIndex: type === 'container' ? 1 : 3
+    zIndex: type === 'container' ? 1 : 3,
+    // 图层状态：是否可见 / 是否锁定
+    visible: true,
+    locked: false
   }
 }
 
@@ -535,7 +538,10 @@ const state = reactive({
   draftSaving: false,       // 自动保存进行中
 
   // 组件剪贴板（内存，用于复制/粘贴）
-  clipboard: []
+  clipboard: [],
+
+  // 图层 hover 高亮（图层面板与画布联动）
+  hoveredId: null
 })
 
 console.log('Initial state:', state)
@@ -634,7 +640,10 @@ const actions = {
       height: Number(config.height) || defaults.height || 50,
       style: { ...defaults.style, ...(config.style || {}) },
       props: { ...defaults.props, ...(config.props || {}) },
-      zIndex: config.zIndex || (type === 'container' ? 1 : 3)
+      zIndex: config.zIndex || (type === 'container' ? 1 : 3),
+      // 图层状态（导入/AI 结果缺省为可见、未锁定）
+      visible: config.visible !== false,
+      locked: config.locked === true
     }
   },
 
@@ -750,6 +759,7 @@ const actions = {
 
     const selected = state.page.components.filter(comp => {
       return (
+        !comp.locked &&
         comp.left >= rect.x &&
         comp.top >= rect.y &&
         comp.left + comp.width <= rect.x + rect.width &&
@@ -817,7 +827,8 @@ const actions = {
    * @returns {number} 受影响的组件数
    */
   alignComponents(type) {
-    const comps = actions.getSelectedComponents()
+    // 锁定的组件不参与批量移动
+    const comps = actions.getSelectedComponents().filter(c => !c.locked)
     if (comps.length < 2) return 0
 
     saveHistory('alignComponents')
@@ -849,7 +860,8 @@ const actions = {
    * @returns {number} 受影响的组件数
    */
   distributeComponents(axis) {
-    const comps = actions.getSelectedComponents()
+    // 锁定的组件不参与批量移动
+    const comps = actions.getSelectedComponents().filter(c => !c.locked)
     if (comps.length < 3) return 0
 
     saveHistory('distributeComponents')
@@ -935,7 +947,7 @@ const actions = {
    * @returns {number} 选中数量
    */
   selectAll() {
-    state.selectedIds = state.page.components.map(c => c.id)
+    state.selectedIds = state.page.components.filter(c => !c.locked).map(c => c.id)
     state.selectedId = state.selectedIds[0] || null
     return state.selectedIds.length
   },
@@ -948,7 +960,8 @@ const actions = {
    * @returns {number} 受影响组件数
    */
   nudgeSelected(dx, dy, recordHistory = true) {
-    const comps = actions.getSelectedComponents()
+    // 锁定的组件不参与微调
+    const comps = actions.getSelectedComponents().filter(c => !c.locked)
     if (comps.length === 0) return 0
 
     if (recordHistory) saveHistory('nudgeComponents')
@@ -965,9 +978,14 @@ const actions = {
    * @returns {number} 删除的组件数
    */
   removeSelected() {
-    const ids = state.selectedIds.length
+    // 锁定的组件不会被删除
+    const ids = (state.selectedIds.length
       ? [...state.selectedIds]
       : (state.selectedId ? [state.selectedId] : [])
+    ).filter(id => {
+      const comp = state.page.components.find(c => c.id === id)
+      return comp && !comp.locked
+    })
     if (ids.length === 0) return 0
 
     saveHistory('removeComponents')
@@ -976,6 +994,125 @@ const actions = {
     state.selectedId = null
     state.selectedIds = []
     return ids.length
+  },
+
+  // ==================== 图层管理 ====================
+
+  /**
+   * 取按绘制顺序（底 → 顶）排列的组件
+   * 规则：zIndex 升序；zIndex 相同时按数组顺序（越靠后越靠上）
+   * @returns {Array} 新数组（元素为原组件对象引用）
+   */
+  getPaintOrderedComponents() {
+    return [...state.page.components]
+      .map((comp, index) => ({ comp, index }))
+      .sort((a, b) => ((a.comp.zIndex || 3) - (b.comp.zIndex || 3)) || (a.index - b.index))
+      .map(item => item.comp)
+  },
+
+  // 设置组件可见性
+  setComponentVisible(id, visible) {
+    const comp = state.page.components.find(c => c.id === id)
+    if (!comp) return false
+    saveHistory('setComponentVisible', id)
+    comp.visible = visible !== false
+    return true
+  },
+
+  // 切换组件可见性
+  toggleComponentVisible(id) {
+    const comp = state.page.components.find(c => c.id === id)
+    if (!comp) return false
+    return actions.setComponentVisible(id, comp.visible === false)
+  },
+
+  // 设置组件锁定状态（锁定后画布上不可拖动/缩放，也不会被批量操作移动）
+  setComponentLocked(id, locked) {
+    const comp = state.page.components.find(c => c.id === id)
+    if (!comp) return false
+    saveHistory('setComponentLocked', id)
+    comp.locked = locked === true
+    // 锁定后从选中集合中移除，避免误操作
+    if (comp.locked) {
+      state.selectedIds = state.selectedIds.filter(x => x !== id)
+      if (state.selectedId === id) state.selectedId = state.selectedIds[0] || null
+    }
+    return true
+  },
+
+  // 切换组件锁定状态
+  toggleComponentLocked(id) {
+    const comp = state.page.components.find(c => c.id === id)
+    if (!comp) return false
+    return actions.setComponentLocked(id, !comp.locked)
+  },
+
+  // 重命名组件（图层列表中显示的名称）
+  renameComponent(id, name) {
+    const comp = state.page.components.find(c => c.id === id)
+    if (!comp) return false
+    const cleaned = String(name || '').trim()
+    if (!cleaned || cleaned === comp.name) return false
+    saveHistory('renameComponent', id)
+    comp.name = cleaned
+    return true
+  },
+
+  /**
+   * 按给定顺序重排图层，并归一化 zIndex，使「面板顺序 = 最终叠放顺序」
+   * @param {string[]} orderedIds - 自底向顶的组件 id 顺序
+   * @returns {number} 参与重排的组件数
+   */
+  reorderComponents(orderedIds) {
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) return 0
+
+    const map = new Map(state.page.components.map(c => [c.id, c]))
+    const ordered = orderedIds.map(id => map.get(id)).filter(Boolean)
+    if (ordered.length === 0) return 0
+
+    // 未出现在 orderedIds 中的组件保持原相对顺序，追加到最上层
+    const rest = state.page.components.filter(c => !orderedIds.includes(c.id))
+    const finalList = [...ordered, ...rest]
+
+    saveHistory('reorderComponents')
+
+    // 归一化：最底层 = 1，向上递增
+    finalList.forEach((comp, index) => {
+      comp.zIndex = index + 1
+    })
+    state.page.components = finalList
+    return finalList.length
+  },
+
+  /**
+   * 调整单个组件的图层位置
+   * @param {string} id - 组件 id
+   * @param {'up'|'down'|'top'|'bottom'} direction - 方向
+   * @returns {boolean} 是否发生变化
+   */
+  moveComponentLayer(id, direction) {
+    const ordered = actions.getPaintOrderedComponents()
+    const index = ordered.findIndex(c => c.id === id)
+    if (index === -1) return false
+
+    const targetIndex = {
+      up: Math.min(ordered.length - 1, index + 1),
+      down: Math.max(0, index - 1),
+      top: ordered.length - 1,
+      bottom: 0
+    }[direction]
+    if (targetIndex === index) return false
+
+    const next = [...ordered]
+    const [moved] = next.splice(index, 1)
+    next.splice(targetIndex, 0, moved)
+    actions.reorderComponents(next.map(c => c.id))
+    return true
+  },
+
+  // 设置图层 hover 高亮（面板 ↔ 画布联动）
+  setHoveredId(id) {
+    state.hoveredId = id
   },
 
   // 更新组件属性
@@ -1035,10 +1172,13 @@ const actions = {
   updateComponentZIndex(id, zIndex) {
     const component = state.page.components.find(c => c.id === id)
     if (component) {
+      const value = Number(zIndex)
+      // 非法值（如输入框清空产生的 NaN）直接忽略
+      if (!Number.isFinite(value)) return
       // 保存历史记录
       saveHistory('updateZIndex', id)
-      // 限制层级在1-5之间
-      component.zIndex = Math.max(1, Math.min(5, zIndex))
+      // 限制层级范围（图层面板重排后会使用较大的连续值）
+      component.zIndex = Math.max(1, Math.min(999, Math.round(value)))
     }
   },
 
@@ -1748,6 +1888,10 @@ export function useEditor() {
     draggingId: computed(() => state.draggingId),
     componentCount,
     clipboardCount,
+
+    // 图层（自底向顶的绘制顺序）与 hover 高亮
+    orderedComponents: computed(() => actions.getPaintOrderedComponents()),
+    hoveredId: computed(() => state.hoveredId),
 
     // 草稿状态
     draftRestored: computed(() => state.draftRestored),

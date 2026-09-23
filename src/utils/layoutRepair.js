@@ -10,39 +10,16 @@
  *
  * 注意：只处理「矩形真正相交」的情况，不会破坏本来正确的排版
  *（例如同一行里 left 各不相同的页脚链接，top 相同是合法的）。
+ *
+ * 父子容器的判定与图层面板共用 layerTree 模块，避免两套规则产生分歧。
  */
+
+import { rectOf, isOverlapping, isContaining, computeParentIds } from './layerTree.js'
 
 // 顶层区块之间的最小垂直间距
 const BLOCK_GAP = 16
 // 容器内部子元素之间的最小垂直间距
 const CHILD_GAP = 6
-// 判定「被容器包含」时的容差
-const CONTAIN_TOLERANCE = 2
-
-/** 取组件矩形 */
-function rectOf(c) {
-  return {
-    l: c.left,
-    t: c.top,
-    r: c.left + c.width,
-    b: c.top + c.height
-  }
-}
-
-/** 两个矩形是否真正相交（容差内不算相交，避免相邻贴边被误判） */
-function isOverlapping(a, b, tol = 1) {
-  return a.l < b.r - tol && b.l < a.r - tol && a.t < b.b - tol && b.t < a.b - tol
-}
-
-/** outer 是否完全包含 inner */
-function isContaining(outer, inner, tol = CONTAIN_TOLERANCE) {
-  return inner.l >= outer.l - tol && inner.r <= outer.r + tol && inner.t >= outer.t - tol && inner.b <= outer.b + tol
-}
-
-/** 矩形面积 */
-function area(r) {
-  return Math.max(0, r.r - r.l) * Math.max(0, r.b - r.t)
-}
 
 /**
  * 修复页面布局（就地修改传入的组件数组坐标）
@@ -61,42 +38,14 @@ export function repairLayout(page) {
 
   const containers = components.filter(c => c.type === 'container')
 
-  /**
-   * 计算每个组件的父容器
-   * 判定策略（AI 坐标常常互相压叠，需要更贴近意图地归组）：
-   * 1. 候选 = 完全包含该组件的容器
-   * 2. 优先选「书写顺序上更晚声明、且声明在该组件之前」的容器
-   *    —— 这样写在一整条通栏背景里的页脚元素不会被误判成某张卡片的子元素
-   * 3. 若没有满足 2 的候选，则退化为「面积最小」的容器
-   */
+  // 父容器判定与图层面板共用 layerTree 模块（规则见该模块注释）
+  const parentIds = computeParentIds(components)
+  const componentById = new Map(components.map(c => [c.id, c]))
+
   const parentOf = new Map()
   for (const comp of components) {
-    const rect = rectOf(comp)
-    const compOrder = order.get(comp)
-    let byOrder = null
-    let byOrderIndex = -1
-    let byArea = null
-    let byAreaValue = Infinity
-
-    for (const container of containers) {
-      if (container === comp) continue
-      const cRect = rectOf(container)
-      if (!isContaining(cRect, rect)) continue
-
-      const cOrder = order.get(container)
-      if (cOrder < compOrder && cOrder > byOrderIndex) {
-        byOrder = container
-        byOrderIndex = cOrder
-      }
-
-      const a = area(cRect)
-      if (a < byAreaValue) {
-        byArea = container
-        byAreaValue = a
-      }
-    }
-
-    parentOf.set(comp, byOrder || byArea)
+    const parentId = parentIds.get(comp.id)
+    parentOf.set(comp, parentId ? componentById.get(parentId) || null : null)
   }
 
   const childrenOf = new Map()

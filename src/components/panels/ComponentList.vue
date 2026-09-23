@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useEditor, COMPONENT_DEFAULTS, COMPONENT_CATEGORIES } from '../../stores/editor'
+import LayerPanel from './LayerPanel.vue'
 
 const { addComponent, setDraggingType, clearDraggingType, applyPageTemplate, applyComponents, page } = useEditor()
 
@@ -12,9 +13,10 @@ const expandedCategories = ref(['basic'])
 
 // 标签页配置
 const tabs = [
-  { key: 'components', label: '组件', icon: '组件' },
-  { key: 'pages', label: '预设页面', icon: '页面' },
-  { key: 'layouts', label: '预设布局', icon: '布局' }
+  { key: 'components', label: '组件', icon: '📦' },
+  { key: 'layers', label: '图层', icon: '🧩' },
+  { key: 'pages', label: '页面', icon: '📄' },
+  { key: 'layouts', label: '布局', icon: '🧱' }
 ]
 
 // 获取组件图标
@@ -646,6 +648,11 @@ function applyPresetLayout(layout) {
       </div>
     </div>
 
+    <!-- 图层管理 -->
+    <div v-if="activeTab === 'layers'" class="tab-content">
+      <LayerPanel />
+    </div>
+
     <!-- 预设页面（完整网页模板） -->
     <div v-if="activeTab === 'pages'" class="tab-content">
       <p class="list-hint">点击应用完整网页模板</p>
@@ -696,6 +703,7 @@ function applyPresetLayout(layout) {
 /* 标签页 */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 16px;
   padding-bottom: 12px;
@@ -704,8 +712,10 @@ function applyPresetLayout(layout) {
 
 .tabs button {
   flex: 1;
-  padding: 8px 10px;
-  font-size: 12px;
+  min-width: 46px;
+  padding: 6px 2px;
+  font-size: 11px;
+  white-space: nowrap;
   border: none;
   border-radius: var(--border-radius);
   background-color: transparent;

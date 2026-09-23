@@ -1,7 +1,7 @@
 {
   "name": "visual-web-editor",
   "private": true,
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "基于 Vue3 + Vite 的轻量级可视化网页编辑器：拖拽搭建、实时预览、一键导出 HTML/Vue，并支持 AI 辅助生成完整网页",
   "type": "module",
   "license": "MIT",

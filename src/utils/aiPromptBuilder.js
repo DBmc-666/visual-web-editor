@@ -82,7 +82,7 @@ export function buildGenerateMessages({
     '3. components 是组件数组，每个组件包含：id, type, name, left, top, width, height, zIndex, style, props。',
     `4. 已存在的组件（带有 id）尽量保留其 id、相对布局与用户设置的内容；新补充的组件 id 用 "new-1"、"new-2" 这类字符串。`,
     '5. 必须遵守下面的 Schema 白名单，禁止使用白名单之外的类型、style 键、props 键。',
-    '6. 字段归属要正确：textAlign 属于 props（文本/按钮/链接组件）；zIndex 只能是 1~5 的整数（container 用 1，普通内容用 2~3，浮层最多 4~5）。',
+    '6. 字段归属要正确：textAlign 属于 props（文本/按钮/链接组件）；zIndex 为整数、越大越靠上（container 用较小值如 1~2，普通内容用 3~5，浮层可更大，不要用超大值）。',
     '7. 坐标与尺寸一律用**数字**（不要写 "6px" 这类字符串）；只有 style.borderRadius 允许带单位（如 "10px" 或 "50%"）。',
     '8. 页面必须有完整的结构：导航、主体内容、页脚等；不要让页面看起来空荡。',
     '9. 文本内容用中文书写，专业、贴合页面用途；图片使用 https:// 开头的公开占位图 URL（如 https://picsum.photos/seed/xxx/800/400）。',

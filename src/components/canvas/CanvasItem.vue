@@ -36,7 +36,8 @@ const {
   selectedIds,
   draggingId,
   setDraggingId,
-  clearDraggingId
+  clearDraggingId,
+  hoveredId
 } = useEditor()
 
 // 计算阴影样式
@@ -179,6 +180,8 @@ const isCtrlDragging = ref(false) // 记录是否按Ctrl拖拽
 function handleMouseDown(event) {
   if (previewMode.value) return
   if (event.button !== 0) return
+  // 锁定的组件不允许在画布上拖动（可通过图层面板解锁）
+  if (props.component.locked) return
 
   event.stopPropagation()
 
@@ -305,6 +308,7 @@ const editableTypes = ['text', 'button', 'link']
 // 双击进入编辑模式
 function handleDoubleClick(event) {
   if (previewMode.value) return
+  if (props.component.locked) return
   if (!editableTypes.includes(props.component.type)) return
 
   event.stopPropagation()
@@ -354,8 +358,9 @@ function cancelEdit() {
 
 <template>
   <div
+    v-if="component.visible !== false"
     class="canvas-item"
-    :class="{ selected, dragging: isDragging, editing: isEditing }"
+    :class="{ selected, dragging: isDragging, editing: isEditing, locked: component.locked, hovered: hoveredId === component.id }"
     :style="componentStyle"
     @mousedown="handleMouseDown"
     @click="handleClick"
@@ -388,10 +393,10 @@ function cancelEdit() {
       <component :is="CurrentWidget" :component="component" :preview-mode="previewMode" />
     </template>
 
-    <!-- 选中边框和调整手柄 -->
+    <!-- 选中边框和调整手柄（锁定组件不显示手柄） -->
     <template v-if="(!previewMode && !isEditing) && (props.component.id === draggingId || (selected && !draggingId))">
-      <div class="selection-border"></div>
-      <ResizeHandle :component="component" />
+      <div class="selection-border" :class="{ 'locked-border': component.locked }"></div>
+      <ResizeHandle v-if="!component.locked" :component="component" />
     </template>
   </div>
 </template>
@@ -411,6 +416,17 @@ function cancelEdit() {
 
 .canvas-item.editing {
   cursor: text;
+}
+
+/* 锁定：不可拖动 */
+.canvas-item.locked {
+  cursor: not-allowed;
+}
+
+/* 图层面板 hover 联动高亮 */
+.canvas-item.hovered {
+  outline: 1px dashed var(--color-primary);
+  outline-offset: 1px;
 }
 
 .edit-input {
@@ -437,5 +453,11 @@ function cancelEdit() {
   border: 2px solid var(--color-primary);
   pointer-events: none;
   z-index: 1000;
+}
+
+/* 锁定组件的选中边框用虚线区分 */
+.selection-border.locked-border {
+  border-style: dashed;
+  border-color: var(--color-warning);
 }
 </style>

@@ -234,8 +234,10 @@ export const BASE_COMPONENT_FIELDS = [
   { key: 'top', type: 'number', desc: '左上角 Y 坐标（px）' },
   { key: 'width', type: 'number', desc: '宽度（px）' },
   { key: 'height', type: 'number', desc: '高度（px）' },
-  { key: 'zIndex', type: 'number', desc: '层级 1~5，容器通常 1，内容组件更高' },
-  { key: 'name', type: 'string', desc: '组件名称（可省略）' },
+  { key: 'zIndex', type: 'number', desc: '层级，越大越靠上；容器用较小值，内容用较大值' },
+  { key: 'visible', type: 'boolean', desc: '是否可见（false 时画布与导出都不渲染）' },
+  { key: 'locked', type: 'boolean', desc: '是否锁定（锁定后画布上不可拖动）' },
+  { key: 'name', type: 'string', desc: '图层名称（可省略）' },
   { key: 'style', type: 'object', desc: '样式对象，键必须来自样式白名单' },
   { key: 'props', type: 'object', desc: '属性对象，键必须来自对应类型的 props 白名单' }
 ]
@@ -255,7 +257,7 @@ export function sanitizeComponent(comp, options = {}) {
   const type = comp.type
   if (!KNOWN_COMPONENT_TYPES.includes(type)) return null
 
-  const { maxWidth = 3840, maxHeight = 8000, maxZIndex = 5 } = options
+  const { maxWidth = 3840, maxHeight = 8000, maxZIndex = 999 } = options
 
   const num = (v, fallback = 0) => {
     const n = parseFloat(v)
@@ -286,6 +288,9 @@ export function sanitizeComponent(comp, options = {}) {
     width: Math.max(20, Math.min(maxWidth, num(comp.width, 100))),
     height: Math.max(20, Math.min(maxHeight, num(comp.height, 50))),
     zIndex: Math.max(1, Math.min(maxZIndex, num(comp.zIndex, 3) || 3)),
+    // 图层状态：缺省可见、未锁定
+    visible: comp.visible !== false,
+    locked: comp.locked === true,
     style,
     props
   }
@@ -396,6 +401,8 @@ export function getPageContract(page) {
       width: comp.width,
       height: comp.height,
       zIndex: comp.zIndex,
+      visible: comp.visible !== false,
+      locked: comp.locked === true,
       style: comp.style,
       props: comp.props
     }))
