@@ -1,9 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useEditor } from '../../stores/editor'
+import { useAi } from '../../stores/ai'
 import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages, exportVue } from '../../utils/htmlGenerator'
 
 const { page, previewMode, togglePreviewMode, setZoom, zoom, deselectComponent, exportPageJSON, exportLayoutJSON, importPageJSON, importLayoutJSON, undo, redo, canUndo, canRedo, guidesVisible, guidesList, snapEnabled, toggleGuides, toggleSnap, addHorizontalGuide, addVerticalGuide, addCircleGuide, addCenterGuides, addRotatableLineGuide, clearGuides } = useEditor()
+
+// AI 辅助建站
+const ai = useAi()
 
 // 将方法转换为计算属性
 const canUndoComputed = computed(() => canUndo())
@@ -417,6 +421,11 @@ function closePageSettings() {
         </div>
       </div>
 
+      <!-- AI 辅助建站按钮 -->
+      <button class="btn btn-ai" @click="ai.openPanel()" title="让 AI 根据当前布局补全完整网页">
+        🤖 AI 生成
+      </button>
+
       <!-- 预览按钮 -->
       <button class="btn" @click="togglePreviewMode">
         {{ previewMode ? '退出预览' : '预览' }}
@@ -737,5 +746,22 @@ function closePageSettings() {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+/* AI 生成按钮 */
+.btn-ai {
+  min-width: 100px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-ai:hover {
+  background: linear-gradient(135deg, #7a90f0, #8a5fc4);
+  border: none;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
 }
 </style>

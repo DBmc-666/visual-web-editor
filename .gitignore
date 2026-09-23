@@ -1,11 +1,10 @@
-.gitignore
-# Dependencies
+# 依赖
 node_modules/
 
-# Build output
+# 构建产物
 dist/
 
-# Test files
+# 本地测试产物
 test/
 
 # IDE
@@ -14,18 +13,26 @@ test/
 *.swp
 *.swo
 
-# OS
+# 操作系统
 .DS_Store
 Thumbs.db
 
-# Logs
+# 日志
 *.log
 npm-debug.log*
 
-# Environment
+# 环境变量
 .env
 .env.local
 .env.*.local
 
-# Lock files
-# package-lock.json  # 保留，用于保证团队依赖版本一致
+# 本地 API Key 文件（AI 面板支持从文本文件读取 Key，切勿提交）
+key.txt
+keys.txt
+*apikey*
+*api-key*
+*api_key*
+secret*.txt
+*.key
+
+# 锁文件保留：package-lock.json 用于保证依赖版本一致

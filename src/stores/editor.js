@@ -4,8 +4,13 @@
  * @note 后期可平滑迁移到 Pinia 状态管理库
  */
 
-import { reactive, computed } from 'vue'
+import { reactive, computed, watch } from 'vue'
 import { generateId, generatePageId } from '../utils/idGenerator'
+
+/**
+ * 草稿持久化存储键
+ */
+export const DRAFT_STORAGE_KEY = 'visual-web-editor:draft:v1'
 
 /**
  * 组件类型枚举
@@ -331,8 +336,8 @@ export const COMPONENT_DEFAULTS = {
    */
   datetime: {
     name: '日期时间',
-    width: 300,
-    height: 60,
+    width: 330,
+    height: 45,
     style: {
       fontSize: 16,
       color: '#333333',
@@ -418,6 +423,13 @@ export const COMPONENT_DEFAULTS = {
   }
 }
 
+export const BACKGROUND_TYPES = {
+  SOLID: 'solid',
+  GRADIENT_LINEAR: 'gradient-linear',
+  GRADIENT_RADIAL: 'gradient-radial',
+  IMAGE: 'image'
+}
+
 // 创建页面状态
 function createPageState() {
   return {
@@ -426,6 +438,14 @@ function createPageState() {
     width: 1200,
     height: 800,
     backgroundColor: '#ffffff',
+    backgroundType: 'solid',
+    backgroundGradientStart: '#ffffff',
+    backgroundGradientEnd: '#f5f5f5',
+    backgroundGradientAngle: 180,
+    backgroundImage: '',
+    backgroundImageSize: 'cover',
+    backgroundImagePosition: 'center',
+    backgroundImageRepeat: 'no-repeat',
     components: []
   }
 }
@@ -507,12 +527,22 @@ const state = reactive({
     startY: 0,
     endX: 0,
     endY: 0
-  }
+  },
+
+  // 草稿状态
+  draftRestored: false,     // 是否从本地草稿恢复
+  draftSavedAt: null,       // 上次自动保存时间
+  draftSaving: false        // 自动保存进行中
 })
 
 console.log('Initial state:', state)
 
 // ==================== 备忘录模式 - 历史记录管理 ====================
+
+// 生成页面完整快照（包含全部页面与背景字段，保证撤销/重做一致）
+function createPageSnapshot() {
+  return JSON.parse(JSON.stringify(state.page))
+}
 
 // 保存当前状态到撤销栈
 function saveHistory(actionType, componentId = null) {
@@ -521,14 +551,7 @@ function saveHistory(actionType, componentId = null) {
     timestamp: Date.now(),
     actionType,
     componentId,
-    page: JSON.parse(JSON.stringify({
-      id: state.page.id,
-      name: state.page.name,
-      width: state.page.width,
-      height: state.page.height,
-      backgroundColor: state.page.backgroundColor,
-      components: state.page.components
-    })),
+    page: createPageSnapshot(),
     selectedId: state.selectedId
   }
 
@@ -576,22 +599,89 @@ const actions = {
     return component
   },
 
-  // 从配置添加组件
+  // 从配置添加组件（保存历史记录）
   addComponentFromConfig(config) {
-    const component = {
-      id: config.id || generateId(config.type),
-      type: config.type,
-      name: config.name || COMPONENT_DEFAULTS[config.type]?.name || config.type,
-      left: config.left || 0,
-      top: config.top || 0,
-      width: config.width || COMPONENT_DEFAULTS[config.type]?.width || 100,
-      height: config.height || COMPONENT_DEFAULTS[config.type]?.height || 50,
-      style: config.style || {},
-      props: config.props || {},
-      zIndex: config.zIndex || 3
-    }
+    const component = actions.normalizeComponentConfig(config)
+    if (!component) return null
+
+    saveHistory('addComponentFromConfig', component.id)
     state.page.components.push(component)
     return component
+  },
+
+  // 将任意组件配置规范化为编辑器标准组件结构
+  // 仅接受已知组件类型；字段缺失时与默认配置合并，坐标/尺寸转为数字
+  normalizeComponentConfig(config) {
+    if (!config || typeof config !== 'object') return null
+
+    const type = config.type
+    const defaults = COMPONENT_DEFAULTS[type]
+    if (!defaults) return null
+
+    return {
+      id: config.id || generateId(type),
+      type,
+      name: config.name || defaults.name || type,
+      left: Number(config.left) || 0,
+      top: Number(config.top) || 0,
+      width: Number(config.width) || defaults.width || 100,
+      height: Number(config.height) || defaults.height || 50,
+      style: { ...defaults.style, ...(config.style || {}) },
+      props: { ...defaults.props, ...(config.props || {}) },
+      zIndex: config.zIndex || (type === 'container' ? 1 : 3)
+    }
+  },
+
+  // 原子应用完整页面模板（一次历史记录，可整体撤销）
+  applyPageTemplate(config) {
+    if (!config || !Array.isArray(config.components)) {
+      return { success: false, message: '无效的页面模板数据' }
+    }
+
+    saveHistory('applyPageTemplate')
+
+    if (config.name) state.page.name = config.name
+    if (config.width) state.page.width = config.width
+    if (config.height) state.page.height = config.height
+    if (config.backgroundColor) state.page.backgroundColor = config.backgroundColor
+    if (config.backgroundType) state.page.backgroundType = config.backgroundType
+    if (config.backgroundGradientStart) state.page.backgroundGradientStart = config.backgroundGradientStart
+    if (config.backgroundGradientEnd) state.page.backgroundGradientEnd = config.backgroundGradientEnd
+    if (config.backgroundGradientAngle) state.page.backgroundGradientAngle = config.backgroundGradientAngle
+    if (config.backgroundImage) state.page.backgroundImage = config.backgroundImage
+    if (config.backgroundImageSize) state.page.backgroundImageSize = config.backgroundImageSize
+    if (config.backgroundImagePosition) state.page.backgroundImagePosition = config.backgroundImagePosition
+    if (config.backgroundImageRepeat) state.page.backgroundImageRepeat = config.backgroundImageRepeat
+
+    // 规范化并过滤未知组件类型
+    const normalized = (config.components || [])
+      .map(comp => actions.normalizeComponentConfig(comp))
+      .filter(Boolean)
+
+    state.page.components = normalized
+    state.selectedId = null
+    state.selectedIds = []
+    return { success: true, message: `页面模板应用成功（${normalized.length} 个组件）` }
+  },
+
+  // 批量添加/替换组件配置（原子操作，一次历史记录）
+  applyComponents(configs, { replace = false } = {}) {
+    if (!Array.isArray(configs)) return 0
+
+    saveHistory(replace ? 'applyComponents-replace' : 'applyComponents-append')
+
+    const normalized = configs
+      .map(comp => actions.normalizeComponentConfig(comp))
+      .filter(Boolean)
+
+    if (replace) {
+      state.page.components = normalized
+    } else {
+      state.page.components = state.page.components.concat(normalized)
+    }
+    state.selectedId = null
+    state.selectedIds = []
+    return normalized.length
   },
 
   // 删除组件
@@ -717,6 +807,8 @@ const actions = {
   updateComponent(id, updates) {
     const component = state.page.components.find(c => c.id === id)
     if (component) {
+      // 保存历史记录
+      saveHistory('updateComponent', id)
       Object.assign(component, updates)
     }
   },
@@ -768,6 +860,8 @@ const actions = {
   updateComponentZIndex(id, zIndex) {
     const component = state.page.components.find(c => c.id === id)
     if (component) {
+      // 保存历史记录
+      saveHistory('updateZIndex', id)
       // 限制层级在1-5之间
       component.zIndex = Math.max(1, Math.min(5, zIndex))
     }
@@ -811,8 +905,9 @@ const actions = {
 
   // 更新页面尺寸
   updatePageSize(width, height) {
-    state.page.width = Math.max(320, width)
-    state.page.height = Math.max(200, height)
+    saveHistory('updatePageSize')
+    state.page.width = Math.max(320, Math.min(3840, width))
+    state.page.height = Math.max(200, Math.min(8000, height))
   },
 
   // 设置拖拽类型
@@ -827,15 +922,20 @@ const actions = {
 
   // 更新页面属性
   updatePage(updates) {
+    saveHistory('updatePage')
     Object.assign(state.page, updates)
   },
 
   // 重置页面
   resetPage() {
+    saveHistory('resetPage')
     const newPage = createPageState()
     Object.assign(state.page, newPage)
     state.page.components = []
     state.selectedId = null
+    state.selectedIds = []
+    // 重置后清除草稿，避免下次打开又恢复到旧页面
+    clearPageDraft()
   },
 
   // 导出页面为 JSON（包含页面信息和组件）
@@ -847,6 +947,14 @@ const actions = {
       width: state.page.width,
       height: state.page.height,
       backgroundColor: state.page.backgroundColor,
+      backgroundType: state.page.backgroundType,
+      backgroundGradientStart: state.page.backgroundGradientStart,
+      backgroundGradientEnd: state.page.backgroundGradientEnd,
+      backgroundGradientAngle: state.page.backgroundGradientAngle,
+      backgroundImage: state.page.backgroundImage,
+      backgroundImageSize: state.page.backgroundImageSize,
+      backgroundImagePosition: state.page.backgroundImagePosition,
+      backgroundImageRepeat: state.page.backgroundImageRepeat,
       components: state.page.components
     }
     return JSON.stringify(exportData, null, 2)
@@ -872,33 +980,30 @@ const actions = {
         throw new Error('无效的组件数据')
       }
 
+      saveHistory('importPageJSON')
+
       // 更新页面属性
       if (data.name) state.page.name = data.name
       if (data.width) state.page.width = data.width
       if (data.height) state.page.height = data.height
       if (data.backgroundColor) state.page.backgroundColor = data.backgroundColor
+      if (data.backgroundType) state.page.backgroundType = data.backgroundType
+      if (data.backgroundGradientStart) state.page.backgroundGradientStart = data.backgroundGradientStart
+      if (data.backgroundGradientEnd) state.page.backgroundGradientEnd = data.backgroundGradientEnd
+      if (data.backgroundGradientAngle) state.page.backgroundGradientAngle = data.backgroundGradientAngle
+      if (data.backgroundImage) state.page.backgroundImage = data.backgroundImage
+      if (data.backgroundImageSize) state.page.backgroundImageSize = data.backgroundImageSize
+      if (data.backgroundImagePosition) state.page.backgroundImagePosition = data.backgroundImagePosition
+      if (data.backgroundImageRepeat) state.page.backgroundImageRepeat = data.backgroundImageRepeat
       
-      // 清空现有组件
-      state.page.components = []
-      
-      // 添加导入的组件
-      data.components.forEach(comp => {
-        state.page.components.push({
-          id: generateId(comp.type),
-          type: comp.type,
-          name: comp.name || COMPONENT_DEFAULTS[comp.type]?.name || comp.type,
-          left: comp.left || 0,
-          top: comp.top || 0,
-          width: comp.width || COMPONENT_DEFAULTS[comp.type]?.width || 100,
-          height: comp.height || COMPONENT_DEFAULTS[comp.type]?.height || 50,
-          style: comp.style || {},
-          props: comp.props || {},
-          zIndex: comp.zIndex || 3
-        })
-      })
+      // 规范化并过滤未知组件类型
+      const normalized = data.components
+        .map(comp => actions.normalizeComponentConfig(comp))
+        .filter(Boolean)
+      state.page.components = normalized
       
       state.selectedId = null
-      return { success: true, message: '页面导入成功' }
+      return { success: true, message: `页面导入成功（${normalized.length} 个组件）` }
     } catch (error) {
       return { success: false, message: '导入失败: ' + error.message }
     }
@@ -913,21 +1018,13 @@ const actions = {
       if (!data.components || !Array.isArray(data.components)) {
         throw new Error('无效的组件数据')
       }
+
+      saveHistory('importLayoutJSON')
       
-      // 添加导入的组件（不清空现有组件）
+      // 规范化并添加导入的组件（不清空现有组件，未知类型自动剔除）
       data.components.forEach(comp => {
-        state.page.components.push({
-          id: generateId(comp.type),
-          type: comp.type,
-          name: comp.name || COMPONENT_DEFAULTS[comp.type]?.name || comp.type,
-          left: comp.left || 0,
-          top: comp.top || 0,
-          width: comp.width || COMPONENT_DEFAULTS[comp.type]?.width || 100,
-          height: comp.height || COMPONENT_DEFAULTS[comp.type]?.height || 50,
-          style: comp.style || {},
-          props: comp.props || {},
-          zIndex: comp.zIndex || 3
-        })
+        const normalized = actions.normalizeComponentConfig(comp)
+        if (normalized) state.page.components.push(normalized)
       })
       
       state.selectedId = null
@@ -947,14 +1044,7 @@ const actions = {
     const currentSnapshot = {
       timestamp: Date.now(),
       actionType: 'undo',
-      page: JSON.parse(JSON.stringify({
-        id: state.page.id,
-        name: state.page.name,
-        width: state.page.width,
-        height: state.page.height,
-        backgroundColor: state.page.backgroundColor,
-        components: state.page.components
-      })),
+      page: createPageSnapshot(),
       selectedId: state.selectedId
     }
     state.redoStack.push(currentSnapshot)
@@ -977,14 +1067,7 @@ const actions = {
     const currentSnapshot = {
       timestamp: Date.now(),
       actionType: 'redo',
-      page: JSON.parse(JSON.stringify({
-        id: state.page.id,
-        name: state.page.name,
-        width: state.page.width,
-        height: state.page.height,
-        backgroundColor: state.page.backgroundColor,
-        components: state.page.components
-      })),
+      page: createPageSnapshot(),
       selectedId: state.selectedId
     }
     state.undoStack.push(currentSnapshot)
@@ -1383,6 +1466,99 @@ const actions = {
   }
 }
 
+// ==================== 草稿持久化 ====================
+
+// 保存当前页面为草稿（localStorage）
+function savePageDraft() {
+  try {
+    const payload = {
+      version: '1.0',
+      savedAt: Date.now(),
+      page: JSON.parse(JSON.stringify(state.page))
+    }
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload))
+    state.draftSavedAt = payload.savedAt
+    state.draftSaving = false
+    return true
+  } catch (error) {
+    console.warn('草稿保存失败:', error)
+    state.draftSaving = false
+    return false
+  }
+}
+
+// 从本地存储恢复草稿（应用启动时调用）
+function loadPageDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY)
+    if (!raw) return { found: false }
+
+    const payload = JSON.parse(raw)
+    if (!payload || !payload.page || !Array.isArray(payload.page.components)) {
+      return { found: false }
+    }
+
+    const p = payload.page
+    // 显式赋值已知字段，避免混入脏数据
+    if (typeof p.id === 'string') state.page.id = p.id
+    if (typeof p.name === 'string') state.page.name = p.name
+    if (typeof p.width === 'number') state.page.width = p.width
+    if (typeof p.height === 'number') state.page.height = p.height
+    if (typeof p.backgroundColor === 'string') state.page.backgroundColor = p.backgroundColor
+    if (typeof p.backgroundType === 'string') state.page.backgroundType = p.backgroundType
+    if (typeof p.backgroundGradientStart === 'string') state.page.backgroundGradientStart = p.backgroundGradientStart
+    if (typeof p.backgroundGradientEnd === 'string') state.page.backgroundGradientEnd = p.backgroundGradientEnd
+    if (typeof p.backgroundGradientAngle === 'number') state.page.backgroundGradientAngle = p.backgroundGradientAngle
+    if (typeof p.backgroundImage === 'string') state.page.backgroundImage = p.backgroundImage
+    if (typeof p.backgroundImageSize === 'string') state.page.backgroundImageSize = p.backgroundImageSize
+    if (typeof p.backgroundImagePosition === 'string') state.page.backgroundImagePosition = p.backgroundImagePosition
+    if (typeof p.backgroundImageRepeat === 'string') state.page.backgroundImageRepeat = p.backgroundImageRepeat
+
+    // 规范化组件，过滤未知类型
+    const components = (p.components || [])
+      .map(comp => actions.normalizeComponentConfig(comp))
+      .filter(Boolean)
+    state.page.components = components
+
+    state.selectedId = null
+    state.selectedIds = []
+    state.draftRestored = true
+    state.draftSavedAt = payload.savedAt
+    return { found: true, savedAt: payload.savedAt, componentCount: components.length }
+  } catch (error) {
+    console.warn('草稿恢复失败:', error)
+    return { found: false }
+  }
+}
+
+// 清除草稿
+function clearPageDraft() {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY)
+  } catch (error) {
+    console.warn('清除草稿失败:', error)
+  }
+  state.draftRestored = false
+  state.draftSavedAt = null
+}
+
+// ==================== 自动保存（防抖） ====================
+
+let draftSaveTimer = null
+
+// 页面数据变化后防抖自动保存草稿
+watch(
+  () => state.page,
+  () => {
+    state.draftSaving = true
+    clearTimeout(draftSaveTimer)
+    draftSaveTimer = setTimeout(() => {
+      savePageDraft()
+    }, 500)
+  },
+  { deep: true }
+)
+
 // 组合式 API 导出
 export function useEditor() {
   return {
@@ -1396,6 +1572,11 @@ export function useEditor() {
     draggingType: computed(() => state.draggingType),
     draggingId: computed(() => state.draggingId),
     componentCount,
+
+    // 草稿状态
+    draftRestored: computed(() => state.draftRestored),
+    draftSavedAt: computed(() => state.draftSavedAt),
+    draftSaving: computed(() => state.draftSaving),
     
     // 辅助线状态
     guides: computed(() => state.guides),
@@ -1411,7 +1592,10 @@ export function useEditor() {
     marqueeSelect: computed(() => state.marqueeSelect),
 
     // 方法
-    ...actions
+    ...actions,
+    savePageDraft,
+    loadPageDraft,
+    clearPageDraft
   }
 }
 

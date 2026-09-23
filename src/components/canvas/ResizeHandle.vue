@@ -118,6 +118,26 @@ function handleMouseMove(event) {
       newTop = startTop.value + startHeight.value - 20
     }
   }
+  
+  // 限制日期时间组件的尺寸范围
+  if (props.component.type === 'datetime') {
+    if (newWidth < 330) {
+      newWidth = 330
+      if (handle.includes('w')) {
+        newLeft = startLeft.value + startWidth.value - 330
+      }
+    } else if (newWidth > 340) {
+      newWidth = 340
+    }
+    if (newHeight < 45) {
+      newHeight = 45
+      if (handle.includes('n')) {
+        newTop = startTop.value + startHeight.value - 45
+      }
+    } else if (newHeight > 50) {
+      newHeight = 50
+    }
+  }
 
   // 更新组件尺寸
   resizeComponent(props.component.id, newWidth, newHeight)

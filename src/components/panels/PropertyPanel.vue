@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useEditor } from '../../stores/editor'
+import { useEditor, BACKGROUND_TYPES } from '../../stores/editor'
 import {
   getComponentBackendConfig,
   generateSingleComponentEntity,
@@ -169,6 +169,64 @@ function updatePageBgColor(color) {
   page.backgroundColor = color
 }
 
+// 更新页面背景类型
+function updatePageBackgroundType(type) {
+  page.backgroundType = type
+}
+
+// 更新页面渐变起始颜色
+function updatePageBgGradientStart(color) {
+  page.backgroundGradientStart = color
+}
+
+// 更新页面渐变结束颜色
+function updatePageBgGradientEnd(color) {
+  page.backgroundGradientEnd = color
+}
+
+// 更新页面渐变角度
+function updatePageBgGradientAngle(angle) {
+  page.backgroundGradientAngle = parseInt(angle) || 180
+}
+
+// 更新页面背景图片URL
+function updatePageBgImage(url) {
+  page.backgroundImage = url
+}
+
+// 更新页面背景图片尺寸
+function updatePageBgImageSize(size) {
+  page.backgroundImageSize = size
+}
+
+// 更新页面背景图片位置
+function updatePageBgImagePosition(position) {
+  page.backgroundImagePosition = position
+}
+
+// 更新页面背景图片重复方式
+function updatePageBgImageRepeat(repeat) {
+  page.backgroundImageRepeat = repeat
+}
+
+// 处理页面背景图片选择
+function handlePageBackgroundImageSelect(event) {
+  const file = event.target.files[0]
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    page.backgroundImage = e.target.result
+  }
+  reader.readAsDataURL(file)
+  event.target.value = ''
+}
+
 // 应用预设尺寸
 function applyPreset(preset) {
   updatePageSize(preset.width, preset.height)
@@ -322,7 +380,13 @@ const componentPropsFields = {
   image: [
     { key: 'src', label: '图片地址', type: 'text' },
     { key: 'alt', label: 'alt文本', type: 'text' },
-    { key: 'objectFit', label: '填充方式', type: 'select', options: ['cover', 'contain', 'fill', 'none', 'scale-down'] },
+    { key: 'objectFit', label: '填充方式', type: 'select', options: [
+      { value: 'cover', label: '覆盖' },
+      { value: 'contain', label: '包含' },
+      { value: 'fill', label: '拉伸' },
+      { value: 'none', label: '原始大小' },
+      { value: 'scale-down', label: '缩小适应' }
+    ]},
     { key: 'hasLink', label: '添加超链接', type: 'checkbox' },
     { key: 'href', label: '链接地址', type: 'text', showIf: { hasLink: true } },
     { key: 'target', label: '打开方式', type: 'select', options: [{ value: '_blank', label: '新窗口打开' }, { value: '_self', label: '当前窗口打开' }], showIf: { hasLink: true } }
@@ -481,7 +545,19 @@ function updateStyle(key, value) {
 // 更新位置和尺寸
 function updatePosition(key, value) {
   if (!selectedId.value) return
-  updateComponent(selectedId.value, { [key]: parseFloat(value) || 0 })
+  
+  let numValue = parseFloat(value) || 0
+  
+  // 限制日期时间组件的宽度和高度范围
+  if (selectedComponent.value.type === 'datetime') {
+    if (key === 'width') {
+      numValue = Math.max(330, Math.min(340, numValue))
+    } else if (key === 'height') {
+      numValue = Math.max(45, Math.min(50, numValue))
+    }
+  }
+  
+  updateComponent(selectedId.value, { [key]: numValue })
 }
 
 // 删除组件
@@ -1172,16 +1248,87 @@ const shadowCSS = computed(() => {
         </div>
         <div class="property-row">
           <label>页面宽度</label>
-          <input type="number" class="input" :value="page.width" @input="updatePageWidth($event.target.value)" min="320" />
+          <input type="number" class="input" :value="page.width" @input="updatePageWidth($event.target.value)" min="320" max="3840" />
         </div>
         <div class="property-row">
           <label>页面高度</label>
-          <input type="number" class="input" :value="page.height" @input="updatePageHeight($event.target.value)" min="200" />
+          <input type="number" class="input" :value="page.height" @input="updatePageHeight($event.target.value)" min="200" max="8000" />
         </div>
         <div class="property-row">
+          <label>背景类型</label>
+          <select class="input" :value="page.backgroundType" @change="updatePageBackgroundType($event.target.value)">
+            <option :value="BACKGROUND_TYPES.SOLID">纯色</option>
+            <option :value="BACKGROUND_TYPES.GRADIENT_LINEAR">线性渐变</option>
+            <option :value="BACKGROUND_TYPES.GRADIENT_RADIAL">径向渐变</option>
+            <option :value="BACKGROUND_TYPES.IMAGE">图片</option>
+          </select>
+        </div>
+
+        <div v-if="page.backgroundType === BACKGROUND_TYPES.SOLID" class="property-row">
           <label>背景颜色</label>
           <input type="color" class="input-color" :value="page.backgroundColor" @input="updatePageBgColor($event.target.value)" />
         </div>
+
+        <div v-if="page.backgroundType === BACKGROUND_TYPES.GRADIENT_LINEAR || page.backgroundType === BACKGROUND_TYPES.GRADIENT_RADIAL" class="gradient-settings">
+          <div class="property-row">
+            <label>起始颜色</label>
+            <input type="color" class="input-color" :value="page.backgroundGradientStart" @input="updatePageBgGradientStart($event.target.value)" />
+          </div>
+          <div class="property-row">
+            <label>结束颜色</label>
+            <input type="color" class="input-color" :value="page.backgroundGradientEnd" @input="updatePageBgGradientEnd($event.target.value)" />
+          </div>
+          <div v-if="page.backgroundType === BACKGROUND_TYPES.GRADIENT_LINEAR" class="property-row">
+            <label>渐变角度</label>
+            <input type="number" class="input" :value="page.backgroundGradientAngle" @input="updatePageBgGradientAngle($event.target.value)" min="0" max="360" />
+            <span class="input-hint">度</span>
+          </div>
+        </div>
+
+        <div v-if="page.backgroundType === BACKGROUND_TYPES.IMAGE" class="image-settings">
+          <div class="property-row">
+            <label>图片URL</label>
+            <input type="text" class="input" :value="page.backgroundImage" @input="updatePageBgImage($event.target.value)" placeholder="输入图片URL" />
+          </div>
+          <div class="property-row">
+            <label>本地图片</label>
+            <input type="file" class="input-file" accept="image/*" @change="handlePageBackgroundImageSelect" />
+          </div>
+          <div class="property-row">
+            <label>图片尺寸</label>
+            <select class="input" :value="page.backgroundImageSize" @change="updatePageBgImageSize($event.target.value)">
+              <option value="cover">覆盖</option>
+              <option value="contain">包含</option>
+              <option value="auto">原始大小</option>
+              <option value="100% 100%">拉伸</option>
+            </select>
+          </div>
+          <div class="property-row">
+            <label>图片位置</label>
+            <select class="input" :value="page.backgroundImagePosition" @change="updatePageBgImagePosition($event.target.value)">
+              <option value="center">居中</option>
+              <option value="top">顶部</option>
+              <option value="bottom">底部</option>
+              <option value="left">左侧</option>
+              <option value="right">右侧</option>
+              <option value="top left">左上</option>
+              <option value="top right">右上</option>
+              <option value="bottom left">左下</option>
+              <option value="bottom right">右下</option>
+            </select>
+          </div>
+          <div class="property-row">
+            <label>重复方式</label>
+            <select class="input" :value="page.backgroundImageRepeat" @change="updatePageBgImageRepeat($event.target.value)">
+              <option value="no-repeat">不重复</option>
+              <option value="repeat">重复</option>
+              <option value="repeat-x">水平重复</option>
+              <option value="repeat-y">垂直重复</option>
+            </select>
+          </div>
+        </div>
+
+
         <div class="preset-sizes">
           <label>预设尺寸</label>
           <div class="preset-buttons">
@@ -1287,11 +1434,42 @@ const shadowCSS = computed(() => {
       <div class="property-section">
         <h4 class="section-title">🎨 背景样式</h4>
         <div class="property-list">
-          <div v-for="field in backgroundStyleFields" :key="field.key" class="property-row">
-            <label>{{ field.label }}</label>
-            <input v-if="field.type === 'number'" type="number" class="input" :value="getStyleValue(field.key) || 1" :min="field.min" :max="field.max" :step="field.step" @input="updateStyle(field.key, parseFloat($event.target.value))" />
-            <input v-else-if="field.type === 'color'" type="color" class="input-color" :value="getStyleValue(field.key) || '#ffffff'" @input="updateStyle(field.key, $event.target.value)" />
+          <div class="property-row">
+            <label>背景类型</label>
+            <select class="input" :value="getStyleValue('backgroundType') || 'solid'" @change="updateStyle('backgroundType', $event.target.value)">
+              <option value="solid">纯色</option>
+              <option value="gradient-linear">线性渐变</option>
+              <option value="gradient-radial">径向渐变</option>
+            </select>
           </div>
+          
+          <!-- 纯色背景 -->
+          <div v-if="!getStyleValue('backgroundType') || getStyleValue('backgroundType') === 'solid'" class="property-row">
+            <label>背景色</label>
+            <input type="color" class="input-color" :value="getStyleValue('backgroundColor') || '#ffffff'" @input="updateStyle('backgroundColor', $event.target.value)" />
+          </div>
+          
+          <!-- 渐变背景 -->
+          <template v-if="getStyleValue('backgroundType') === 'gradient-linear' || getStyleValue('backgroundType') === 'gradient-radial'">
+            <div class="property-row">
+              <label>起始颜色</label>
+              <input type="color" class="input-color" :value="getStyleValue('backgroundGradientStart') || '#ffffff'" @input="updateStyle('backgroundGradientStart', $event.target.value)" />
+            </div>
+            <div class="property-row">
+              <label>结束颜色</label>
+              <input type="color" class="input-color" :value="getStyleValue('backgroundGradientEnd') || '#f5f5f5'" @input="updateStyle('backgroundGradientEnd', $event.target.value)" />
+            </div>
+            <div v-if="getStyleValue('backgroundType') === 'gradient-linear'" class="property-row">
+              <label>渐变角度</label>
+              <input type="number" class="input" :value="getStyleValue('backgroundGradientAngle') || 180" min="0" max="360" @input="updateStyle('backgroundGradientAngle', parseInt($event.target.value) || 180)" />
+            </div>
+          </template>
+          
+          <div class="property-row">
+            <label>透明度</label>
+            <input type="number" class="input" :value="getStyleValue('opacity') || 1" min="0" max="1" step="0.1" @input="updateStyle('opacity', parseFloat($event.target.value))" />
+          </div>
+          
           <!-- 按钮组件特有的交互状态背景颜色 -->
           <div v-if="selectedComponent.type === 'button'" class="property-row">
             <label>悬停背景色</label>
@@ -1764,13 +1942,15 @@ const shadowCSS = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
 }
 
 .property-row label {
   font-size: 12px;
   color: var(--color-text-secondary);
-  min-width: 70px;
+  min-width: 80px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .input {
@@ -1781,6 +1961,14 @@ const shadowCSS = computed(() => {
   border-radius: 4px;
   outline: none;
   transition: border-color 0.2s;
+  min-width: 0;
+}
+
+.property-row input[type="file"] {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
 }
 
 .input:focus {
@@ -2124,5 +2312,12 @@ input:checked + .slider:before {
 .btn-secondary:hover {
   background-color: #e6e6e6;
   border-color: #bfbfbf;
+}
+
+.gradient-settings,
+.image-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 </style>

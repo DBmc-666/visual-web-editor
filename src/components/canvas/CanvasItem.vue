@@ -46,7 +46,7 @@ function getShadowStyle(style) {
   const blur = style?.shadowBlur || 0
   const color = style?.shadowColor || 'rgba(0,0,0,0)'
   if (blur === 0 && x === 0 && y === 0) return 'none'
-  return `${x}px ${y}px ${blur}px ${color}`
+  return `${withUnit(x)} ${withUnit(y)} ${withUnit(blur)} ${color}`
 }
 
 // 计算边框样式
@@ -59,17 +59,52 @@ function getBorderStyle(style) {
   return `${width}px ${borderStyle} ${color}`
 }
 
+// 单位感知的尺寸格式化：数字追加'px'，带单位或含空格的字符串原样保留
+function withUnit(value, unit = 'px') {
+  if (value === undefined || value === null || value === '') return ''
+  const str = String(value)
+  if (/[a-zA-Z%]/.test(str) || str.includes(' ')) return str
+  return `${str}${unit}`
+}
+
 // 计算内边距样式
 function getPaddingStyle(style) {
   if (style?.paddingTop || style?.paddingBottom || style?.paddingLeft || style?.paddingRight) {
-    return `${style.paddingTop || style.padding || 0}px ${style.paddingRight || style.padding || 0}px ${style.paddingBottom || style.padding || 0}px ${style.paddingLeft || style.padding || 0}px`
+    return `${withUnit(style.paddingTop || style.padding || 0)} ${withUnit(style.paddingRight || style.padding || 0)} ${withUnit(style.paddingBottom || style.padding || 0)} ${withUnit(style.paddingLeft || style.padding || 0)}`
   }
-  return `${style?.padding || 0}px`
+  return withUnit(style?.padding || 0)
+}
+
+// 计算组件背景样式
+function getBackgroundStyle(style) {
+  const bgType = style?.backgroundType || 'solid'
+  
+  switch (bgType) {
+    case 'gradient-linear':
+      const angle = style?.backgroundGradientAngle || 180
+      const startColor = style?.backgroundGradientStart || '#ffffff'
+      const endColor = style?.backgroundGradientEnd || '#f5f5f5'
+      return {
+        backgroundImage: `linear-gradient(${angle}deg, ${startColor}, ${endColor})`
+      }
+    case 'gradient-radial':
+      const radialStart = style?.backgroundGradientStart || '#ffffff'
+      const radialEnd = style?.backgroundGradientEnd || '#f5f5f5'
+      return {
+        backgroundImage: `radial-gradient(circle, ${radialStart}, ${radialEnd})`
+      }
+    case 'solid':
+    default:
+      return {
+        backgroundColor: style?.backgroundColor || 'transparent'
+      }
+  }
 }
 
 // 组件样式
 const componentStyle = computed(() => {
   const style = props.component.style || {}
+  const bgStyle = getBackgroundStyle(style)
   
   return {
     position: 'absolute',
@@ -80,25 +115,28 @@ const componentStyle = computed(() => {
     // 层级
     zIndex: props.component.zIndex || 3,
     // 背景和透明度
-    backgroundColor: style.backgroundColor || 'transparent',
+    ...bgStyle,
     opacity: style.opacity || 1,
     // 边框
     border: getBorderStyle(style),
-    borderRadius: style.borderRadius ? `${style.borderRadius}px` : 0,
+    borderRadius: style.borderRadius ? withUnit(style.borderRadius) : 0,
     // 内边距
     padding: getPaddingStyle(style),
     // 阴影
     boxShadow: getShadowStyle(style),
     // 旋转
-    transform: style.rotate ? `rotate(${style.rotate}deg)` : 'none',
-    // 文字样式
-    fontSize: style.fontSize ? `${style.fontSize}px` : undefined,
+    transform: style.rotate ? `rotate(${withUnit(style.rotate, 'deg')})` : 'none',
+    // 文字样式（datetime组件由内部自己计算字体大小）
+    fontSize: props.component.type === 'datetime' ? undefined : (style.fontSize ? withUnit(style.fontSize) : undefined),
     color: style.color || undefined,
     fontWeight: style.fontWeight || undefined,
     lineHeight: style.lineHeight || undefined,
-    letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : undefined,
+    letterSpacing: style.letterSpacing ? withUnit(style.letterSpacing) : undefined,
     textDecoration: style.textDecoration || undefined,
-    textTransform: style.textTransform || undefined
+    textTransform: style.textTransform || undefined,
+    // 文本换行处理，确保预览和生成的网页一致
+    whiteSpace: 'pre-wrap',
+    wordWrap: 'break-word'
   }
 })
 

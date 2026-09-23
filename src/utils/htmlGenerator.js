@@ -52,7 +52,7 @@ function getShadowCSS(style) {
   const blur = style?.shadowBlur || 0
   const color = style?.shadowColor || 'rgba(0,0,0,0)'
   if (blur === 0 && x === 0 && y === 0) return ''
-  return `${x}px ${y}px ${blur}px ${color}`
+  return `${withUnit(x)} ${withUnit(y)} ${withUnit(blur)} ${color}`
 }
 
 /**
@@ -69,6 +69,20 @@ function getBorderCSS(style) {
 }
 
 /**
+ * 单位感知的尺寸格式化
+ * 数字值追加默认单位；已带单位或含空格的字符串（如 '50%'、'4px 12px'）原样保留
+ * @param {string|number} value - 样式值
+ * @param {string} unit - 默认单位
+ * @returns {string}
+ */
+function withUnit(value, unit = 'px') {
+  if (value === undefined || value === null || value === '') return ''
+  const str = String(value)
+  if (/[a-zA-Z%]/.test(str) || str.includes(' ')) return str
+  return `${str}${unit}`
+}
+
+/**
  * 计算CSS内边距样式
  * 支持分别设置四个方向或统一设置
  * @param {Object} style - 组件样式对象
@@ -76,9 +90,9 @@ function getBorderCSS(style) {
  */
 function getPaddingCSS(style) {
   if (style?.paddingTop || style?.paddingBottom || style?.paddingLeft || style?.paddingRight) {
-    return `${style.paddingTop || style.padding || 0}px ${style.paddingRight || style.padding || 0}px ${style.paddingBottom || style.padding || 0}px ${style.paddingLeft || style.padding || 0}px`
+    return `${withUnit(style.paddingTop || style.padding || 0)} ${withUnit(style.paddingRight || style.padding || 0)} ${withUnit(style.paddingBottom || style.padding || 0)} ${withUnit(style.paddingLeft || style.padding || 0)}`
   }
-  if (style?.padding) return `${style.padding}px`
+  if (style?.padding) return withUnit(style.padding)
   return ''
 }
 
@@ -88,7 +102,39 @@ function getPaddingCSS(style) {
  * @returns {string} - 唯一的CSS类名
  */
 function generateComponentId(component) {
-  return `component-${component.id.replace(/-/g, '')}`
+  return `component-${String(component.id || 'x').replace(/-/g, '')}`
+}
+
+/**
+ * 生成组件背景 CSS
+ * @param {Object} style - 组件样式对象
+ * @returns {string[]}
+ */
+function getComponentBackgroundCSS(style) {
+  const bgType = style?.backgroundType || 'solid'
+  const cssParts = []
+  
+  switch (bgType) {
+    case 'gradient-linear':
+      const angle = style?.backgroundGradientAngle || 180
+      const startColor = style?.backgroundGradientStart || '#ffffff'
+      const endColor = style?.backgroundGradientEnd || '#f5f5f5'
+      cssParts.push(`  background-image: linear-gradient(${angle}deg, ${startColor}, ${endColor});`)
+      break
+    case 'gradient-radial':
+      const radialStart = style?.backgroundGradientStart || '#ffffff'
+      const radialEnd = style?.backgroundGradientEnd || '#f5f5f5'
+      cssParts.push(`  background-image: radial-gradient(circle, ${radialStart}, ${radialEnd});`)
+      break
+    case 'solid':
+    default:
+      if (style?.backgroundColor) {
+        cssParts.push(`  background-color: ${style.backgroundColor};`)
+      }
+      break
+  }
+  
+  return cssParts
 }
 
 /**
@@ -111,15 +157,19 @@ function componentStyleToCSSClass(component, pageWidth, pageHeight) {
   cssParts.push(`  width: ${Math.round(component.width)}px;`)
   cssParts.push(`  height: ${Math.round(component.height)}px;`)
   cssParts.push(`  box-sizing: border-box;`)
+  cssParts.push(`  z-index: ${component.zIndex || 1};`)
 
-  // 背景和透明度
-  if (style.backgroundColor) cssParts.push(`  background-color: ${style.backgroundColor};`)
+  // 背景
+  const bgCSS = getComponentBackgroundCSS(style)
+  cssParts.push(...bgCSS)
+  
+  // 透明度
   if (style.opacity && style.opacity !== 1) cssParts.push(`  opacity: ${style.opacity};`)
 
   // 边框
   const border = getBorderCSS(style)
   if (border) cssParts.push(`  border: ${border};`)
-  if (style.borderRadius) cssParts.push(`  border-radius: ${style.borderRadius}px;`)
+  if (style.borderRadius) cssParts.push(`  border-radius: ${withUnit(style.borderRadius)};`)
 
   // 内边距
   const padding = getPaddingCSS(style)
@@ -130,19 +180,23 @@ function componentStyleToCSSClass(component, pageWidth, pageHeight) {
   if (shadow) cssParts.push(`  box-shadow: ${shadow};`)
 
   // 旋转
-  if (style.rotate) cssParts.push(`  transform: rotate(${style.rotate}deg);`)
+  if (style.rotate) cssParts.push(`  transform: rotate(${withUnit(style.rotate, 'deg')});`)
 
   // 文字样式
-  if (style.fontSize) cssParts.push(`  font-size: ${style.fontSize}px;`)
+  if (style.fontSize) cssParts.push(`  font-size: ${withUnit(style.fontSize)};`)
   if (style.color) cssParts.push(`  color: ${style.color};`)
   if (style.fontWeight) cssParts.push(`  font-weight: ${style.fontWeight};`)
   if (style.lineHeight) cssParts.push(`  line-height: ${style.lineHeight};`)
-  if (style.letterSpacing) cssParts.push(`  letter-spacing: ${style.letterSpacing}px;`)
+  if (style.letterSpacing) cssParts.push(`  letter-spacing: ${withUnit(style.letterSpacing)};`)
   if (style.textDecoration && style.textDecoration !== 'none') cssParts.push(`  text-decoration: ${style.textDecoration};`)
   if (style.textTransform && style.textTransform !== 'none') cssParts.push(`  text-transform: ${style.textTransform};`)
 
   // 文本对齐
   if (style.textAlign) cssParts.push(`  text-align: ${style.textAlign};`)
+  
+  // 文本换行处理，确保预览和生成的网页一致
+  cssParts.push(`  white-space: pre-wrap;`)
+  cssParts.push(`  word-wrap: break-word;`)
 
   cssParts.push(`}`)
 
@@ -187,14 +241,33 @@ function componentStyleToString(component, pageWidth, pageHeight) {
   cssParts.push(`width: ${widthPercent}%`)
   cssParts.push(`height: ${heightPercent}%`)
 
-  // 背景和透明度
-  if (style.backgroundColor) cssParts.push(`background-color: ${style.backgroundColor}`)
+  // 背景
+  const bgType = style?.backgroundType || 'solid'
+  switch (bgType) {
+    case 'gradient-linear':
+      const angle = style?.backgroundGradientAngle || 180
+      const startColor = style?.backgroundGradientStart || '#ffffff'
+      const endColor = style?.backgroundGradientEnd || '#f5f5f5'
+      cssParts.push(`background-image: linear-gradient(${angle}deg, ${startColor}, ${endColor})`)
+      break
+    case 'gradient-radial':
+      const radialStart = style?.backgroundGradientStart || '#ffffff'
+      const radialEnd = style?.backgroundGradientEnd || '#f5f5f5'
+      cssParts.push(`background-image: radial-gradient(circle, ${radialStart}, ${radialEnd})`)
+      break
+    case 'solid':
+    default:
+      if (style?.backgroundColor) cssParts.push(`background-color: ${style.backgroundColor}`)
+      break
+  }
+  
+  // 透明度
   if (style.opacity && style.opacity !== 1) cssParts.push(`opacity: ${style.opacity}`)
 
   // 边框
   const border = getBorderCSS(style)
   if (border) cssParts.push(`border: ${border}`)
-  if (style.borderRadius) cssParts.push(`border-radius: ${style.borderRadius}px`)
+  if (style.borderRadius) cssParts.push(`border-radius: ${withUnit(style.borderRadius)}`)
 
   // 内边距
   const padding = getPaddingCSS(style)
@@ -205,16 +278,20 @@ function componentStyleToString(component, pageWidth, pageHeight) {
   if (shadow) cssParts.push(`box-shadow: ${shadow}`)
 
   // 旋转
-  if (style.rotate) cssParts.push(`transform: rotate(${style.rotate}deg)`)
+  if (style.rotate) cssParts.push(`transform: rotate(${withUnit(style.rotate, 'deg')})`)
 
   // 文字样式
-  if (style.fontSize) cssParts.push(`font-size: ${style.fontSize}px`)
+  if (style.fontSize) cssParts.push(`font-size: ${withUnit(style.fontSize)}`)
   if (style.color) cssParts.push(`color: ${style.color}`)
   if (style.fontWeight) cssParts.push(`font-weight: ${style.fontWeight}`)
   if (style.lineHeight) cssParts.push(`line-height: ${style.lineHeight}`)
-  if (style.letterSpacing) cssParts.push(`letter-spacing: ${style.letterSpacing}px`)
+  if (style.letterSpacing) cssParts.push(`letter-spacing: ${withUnit(style.letterSpacing)}`)
   if (style.textDecoration && style.textDecoration !== 'none') cssParts.push(`text-decoration: ${style.textDecoration}`)
   if (style.textTransform && style.textTransform !== 'none') cssParts.push(`text-transform: ${style.textTransform}`)
+  
+  // 文本换行处理，确保预览和生成的网页一致
+  cssParts.push(`white-space: pre-wrap`)
+  cssParts.push(`word-wrap: break-word`)
 
   // 盒模型
   cssParts.push(`box-sizing: border-box`)
@@ -670,18 +747,115 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       const showWeek = props.showWeek || false
       const showAmPm = props.showAmPm || false
       const showSeconds = props.showSeconds !== false
-      const datetimeId = `datetime-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      const datetimeIdClean = datetimeId.replace(/-/g, '')
       
-      // 生成实时更新的JavaScript代码（压缩成单行避免裸换行）
-      const datetimeScript = `function updateDatetime${datetimeIdClean}(){var now=new Date();var year=now.getFullYear();var month=String(now.getMonth()+1).padStart(2,'0');var day=String(now.getDate()).padStart(2,'0');var hours=now.getHours();var minutes=String(now.getMinutes()).padStart(2,'0');var seconds=String(now.getSeconds()).padStart(2,'0');var weekDays=['周日','周一','周二','周三','周四','周五','周六'];var week=weekDays[now.getDay()];var dateTimeText='';var displayType='${displayType}';var styleType='${styleType}';function padZero(n){return String(n).padStart(2,'0')}function getAmPm(h){return h>=12?'下午':'上午'}function get12Hours(h){var h12=h%12;return h12===0?12:h12}if(styleType==='traditional'){if(displayType==='date'||displayType==='datetime'){dateTimeText=year+'年'+(now.getMonth()+1)+'月'+day+'日';if(displayType==='datetime'){if(${showAmPm}){dateTimeText+=' '+getAmPm(hours)+' '+get12Hours(hours)+'点'+minutes+'分'}else{dateTimeText+=' '+hours+'时'+minutes+'分';if(${showSeconds})dateTimeText+=seconds+'秒'}}}else{if(${showAmPm}){dateTimeText=getAmPm(hours)+' '+get12Hours(hours)+':'+minutes}else{dateTimeText=hours+':'+minutes;if(${showSeconds})dateTimeText+=':'+seconds}}}else if(styleType==='compact'){if(displayType==='date'||displayType==='datetime'){dateTimeText=month+'/'+day;if(displayType==='datetime')dateTimeText+=' '+padZero(hours)+':'+minutes}else{dateTimeText=padZero(hours)+':'+minutes}}else{if(displayType==='date'||displayType==='datetime'){dateTimeText=year+'-'+month+'-'+day;if(displayType==='datetime'){if(${showAmPm}){dateTimeText+=' '+getAmPm(hours)+' '+get12Hours(hours)+':'+minutes}else{dateTimeText+=' '+padZero(hours)+':'+minutes;if(${showSeconds})dateTimeText+=':'+seconds}}else{if(${showAmPm}){dateTimeText=getAmPm(hours)+' '+get12Hours(hours)+':'+minutes}else{dateTimeText=padZero(hours)+':'+minutes;if(${showSeconds})dateTimeText+=':'+seconds}}}if(${showWeek})dateTimeText+=' '+week;document.getElementById('${datetimeId}').textContent=dateTimeText}updateDatetime${datetimeIdClean}();setInterval(updateDatetime${datetimeIdClean},1000)`
+      const datetimeId = `datetime-${component.id || Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const datetimeIdClean = datetimeId.replace(/-/g, '').replace(/[^a-zA-Z0-9]/g, '')
+      
+      // 计算自适应字体大小（与预览保持一致）
+      const dtBaseSize = style.fontSize || 16
+      const dtWidth = component.width || 200
+      const dtHeight = component.height || 40
+      const dtMinDimension = Math.min(dtWidth, dtHeight)
+      const dtCalculatedSize = dtMinDimension * 0.4
+      
+      // 限制字体大小在初始值±25像素范围内
+      const dtMinSize = Math.max(8, dtBaseSize - 25)
+      const dtMaxSize = dtBaseSize + 25
+      let dtFinalSize = Math.max(dtMinSize, Math.min(dtCalculatedSize, dtMaxSize))
+      
+      // 根据样式类型调整字体大小和样式
+      let datetimeExtraStyle = `; font-size: ${dtFinalSize}px`
+      if (styleType === 'digital') {
+        datetimeExtraStyle += '; font-family: "Courier New", monospace; font-weight: bold; letter-spacing: 2px'
+      } else if (styleType === 'traditional') {
+        datetimeExtraStyle += '; font-family: "Georgia", serif'
+      } else if (styleType === 'compact') {
+        dtFinalSize = dtFinalSize * 0.9
+        datetimeExtraStyle = `; font-size: ${dtFinalSize}px`
+      }
+      
+      // 生成实时更新的JavaScript代码
+      const datetimeScript = `
+function updateDatetime${datetimeIdClean}() {
+  var now = new Date();
+  var year = now.getFullYear();
+  var month = String(now.getMonth() + 1).padStart(2, '0');
+  var day = String(now.getDate()).padStart(2, '0');
+  var hours = now.getHours();
+  var minutes = String(now.getMinutes()).padStart(2, '0');
+  var seconds = String(now.getSeconds()).padStart(2, '0');
+  var weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  var week = weekDays[now.getDay()];
+  var dateTimeText = '';
+  var displayTypeValue = '${displayType}';
+  var styleTypeValue = '${styleType}';
+  
+  function padZero(n) { return String(n).padStart(2, '0'); }
+  function getAmPm(h) { return h >= 12 ? '下午' : '上午'; }
+  function get12Hours(h) { var h12 = h % 12; return h12 === 0 ? 12 : h12; }
+  
+  if (styleTypeValue === 'traditional') {
+    if (displayTypeValue === 'date' || displayTypeValue === 'datetime') {
+      dateTimeText = year + '年' + (now.getMonth() + 1) + '月' + day + '日';
+      if (displayTypeValue === 'datetime') {
+        if (${showAmPm}) {
+          dateTimeText += ' ' + getAmPm(hours) + ' ' + get12Hours(hours) + '点' + minutes + '分';
+        } else {
+          dateTimeText += ' ' + hours + '时' + minutes + '分';
+          if (${showSeconds}) dateTimeText += seconds + '秒';
+        }
+      }
+    } else {
+      if (${showAmPm}) {
+        dateTimeText = getAmPm(hours) + ' ' + get12Hours(hours) + ':' + minutes;
+      } else {
+        dateTimeText = hours + ':' + minutes;
+        if (${showSeconds}) dateTimeText += ':' + seconds;
+      }
+    }
+  } else if (styleTypeValue === 'compact') {
+    if (displayTypeValue === 'date' || displayTypeValue === 'datetime') {
+      dateTimeText = month + '/' + day;
+      if (displayTypeValue === 'datetime') dateTimeText += ' ' + padZero(hours) + ':' + minutes;
+    } else {
+      dateTimeText = padZero(hours) + ':' + minutes;
+    }
+  } else {
+    if (displayTypeValue === 'date' || displayTypeValue === 'datetime') {
+      dateTimeText = year + '-' + month + '-' + day;
+      if (displayTypeValue === 'datetime') {
+        if (${showAmPm}) {
+          dateTimeText += ' ' + getAmPm(hours) + ' ' + get12Hours(hours) + ':' + minutes;
+        } else {
+          dateTimeText += ' ' + padZero(hours) + ':' + minutes;
+          if (${showSeconds}) dateTimeText += ':' + seconds;
+        }
+      }
+    } else {
+      if (${showAmPm}) {
+        dateTimeText = getAmPm(hours) + ' ' + get12Hours(hours) + ':' + minutes;
+      } else {
+        dateTimeText = padZero(hours) + ':' + minutes;
+        if (${showSeconds}) dateTimeText += ':' + seconds;
+      }
+    }
+  }
+  
+  if (${showWeek}) dateTimeText += ' ' + week;
+  var el = document.getElementById('${datetimeId}');
+  if (el) el.textContent = dateTimeText;
+}
+updateDatetime${datetimeIdClean}();
+setInterval(updateDatetime${datetimeIdClean}, 1000);
+`
       
       return {
         tag: 'div',
         content: '',
-        style: inlineStyle,
+        style: inlineStyle + datetimeExtraStyle,
         attrs: `class="datetime-widget datetime-${styleType}" id="${datetimeId}"`,
-        script: datetimeScript
+        script: datetimeScript,
+        datetimeId: datetimeId
       }
 
     // 导航组件
@@ -869,7 +1043,7 @@ export function generateComponentHTML(component, imagePaths = {}, allComponents 
 
   // 获取容器的子组件
   let childrenHTML = ''
-  let childrenScript = []
+  let childrenScripts = []
   if (component.type === 'container' && allComponents.length > 0) {
     const children = allComponents.filter(c => c.parentId === component.id)
     if (children.length > 0) {
@@ -877,7 +1051,11 @@ export function generateComponentHTML(component, imagePaths = {}, allComponents 
         generateComponentHTML(child, imagePaths, allComponents, indent + 4, pageWidth, pageHeight)
       )
       childrenHTML = '\n' + childrenResults.map(r => r.html || r).join('\n') + '\n' + ' '.repeat(indent)
-      childrenScript = childrenResults.flatMap(r => r.script ? [r.script] : [])
+      // 收集所有子组件的脚本
+      childrenScripts = childrenResults.flatMap(r => {
+        if (Array.isArray(r.script)) return r.script
+        return r.script ? [r.script] : []
+      })
     }
   }
 
@@ -891,9 +1069,14 @@ export function generateComponentHTML(component, imagePaths = {}, allComponents 
     html = ' '.repeat(indent) + `<${tag}${attrsStr ? ' ' + attrsStr : ''}>${content}${childrenHTML}</${tag}>`
   }
   
+  // 合并当前组件的脚本和子组件的脚本
+  const allScripts = []
+  if (script) allScripts.push(script)
+  allScripts.push(...childrenScripts)
+  
   return {
     html,
-    script: script || (childrenScript.length > 0 ? childrenScript : null)
+    script: allScripts.length > 0 ? allScripts : null
   }
 }
 
@@ -914,24 +1097,66 @@ function generateComponentCSS(component, pageWidth, pageHeight) {
  * @param {Object} imagePaths - 图片路径映射
  * @returns {string}
  */
+function generatePageBackgroundCSS(pageData) {
+  const {
+    backgroundColor = '#ffffff',
+    backgroundType = 'solid',
+    backgroundGradientStart = '#ffffff',
+    backgroundGradientEnd = '#f5f5f5',
+    backgroundGradientAngle = 180,
+    backgroundImage = '',
+    backgroundImageSize = 'cover',
+    backgroundImagePosition = 'center',
+    backgroundImageRepeat = 'no-repeat'
+  } = pageData
+
+  const cssParts = []
+
+  switch (backgroundType) {
+    case 'gradient-linear':
+      cssParts.push(`background-image: linear-gradient(${backgroundGradientAngle}deg, ${backgroundGradientStart}, ${backgroundGradientEnd})`)
+      break
+    case 'gradient-radial':
+      cssParts.push(`background-image: radial-gradient(circle, ${backgroundGradientStart}, ${backgroundGradientEnd})`)
+      break
+    case 'image':
+      if (backgroundImage) {
+        cssParts.push(`background-image: url(${backgroundImage})`)
+        cssParts.push(`background-size: ${backgroundImageSize}`)
+        cssParts.push(`background-position: ${backgroundImagePosition}`)
+        cssParts.push(`background-repeat: ${backgroundImageRepeat}`)
+      } else {
+        cssParts.push(`background-color: ${backgroundColor}`)
+      }
+      break
+    case 'solid':
+    default:
+      cssParts.push(`background-color: ${backgroundColor}`)
+      break
+  }
+
+  return cssParts.join(';\n      ')
+}
+
 export function generatePageHTML(pageData, imagePaths = {}) {
   const { width = 1200, height = 800, backgroundColor = '#ffffff', components = [] } = pageData
 
   // 只获取顶层组件（没有父容器的组件）
   const topLevelComponents = components.filter(comp => !comp.parentId)
 
-  // 收集所有datetime组件的脚本
-  const datetimeScripts = []
+  // 先生成所有组件的HTML和脚本，确保id一致
+  const componentsData = topLevelComponents.map(comp => 
+    generateComponentHTML(comp, imagePaths, components, 4, width, height)
+  )
   
-  // 生成组件HTML
-  const componentsHTML = topLevelComponents.map(comp => {
-    const result = generateComponentHTML(comp, imagePaths, components, 4, width, height)
-    // 如果是datetime组件，收集脚本
-    if (comp.type === 'datetime' && result.script) {
-      datetimeScripts.push(result.script)
-    }
-    return result.html || result
-  }).join('\n')
+  // 从生成的数据中提取HTML和脚本
+  const componentsHTML = componentsData.map(r => r.html || r).join('\n')
+  // 收集所有脚本（包括嵌套在容器中的datetime组件脚本）
+  const datetimeScripts = componentsData.flatMap(r => {
+    if (!r.script) return []
+    if (Array.isArray(r.script)) return r.script
+    return [r.script]
+  })
 
   // 生成组件CSS
   const componentsCSS = components.map(comp => {
@@ -974,7 +1199,7 @@ export function generatePageHTML(pageData, imagePaths = {}) {
     .page-container {
       width: ${width}px;
       min-height: ${height}px;
-      background-color: ${backgroundColor};
+      ${generatePageBackgroundCSS(pageData)};
       position: relative;
       margin: 0 auto;
     }
@@ -1326,8 +1551,8 @@ ${componentsHTML}
         initTabs();
       }
     })();
-  <\/script>
-  ${datetimeScripts.length > 0 ? `<script>${datetimeScripts.join('')}<\/script>` : ''}
+  <` + `/script>
+  ${datetimeScripts.length > 0 ? `<` + `script>${datetimeScripts.join('')}<` + `/script>` : ''}
 </body>
 </html>`
 }
@@ -1630,9 +1855,39 @@ export function generateVueComponent(pageData, imagePaths = {}) {
   
   // 生成脚本部分
   const scriptContent = generateVueScript(components)
+
+  const bgType = pageData.backgroundType || 'solid'
+  const bgStart = pageData.backgroundGradientStart || '#ffffff'
+  const bgEnd = pageData.backgroundGradientEnd || '#f5f5f5'
+  const bgAngle = pageData.backgroundGradientAngle || 180
+  const bgImg = pageData.backgroundImage || ''
+  const bgImgSize = pageData.backgroundImageSize || 'cover'
+  const bgImgPos = pageData.backgroundImagePosition || 'center'
+  const bgImgRepeat = pageData.backgroundImageRepeat || 'no-repeat'
+
+  let vueBackgroundStyle = ''
+  switch (bgType) {
+    case 'gradient-linear':
+      vueBackgroundStyle = `backgroundImage: 'linear-gradient(${bgAngle}deg, ${bgStart}, ${bgEnd})'`
+      break
+    case 'gradient-radial':
+      vueBackgroundStyle = `backgroundImage: 'radial-gradient(circle, ${bgStart}, ${bgEnd})'`
+      break
+    case 'image':
+      if (bgImg) {
+        vueBackgroundStyle = `backgroundImage: 'url(${bgImg})', backgroundSize: '${bgImgSize}', backgroundPosition: '${bgImgPos}', backgroundRepeat: '${bgImgRepeat}'`
+      } else {
+        vueBackgroundStyle = `backgroundColor: '${backgroundColor}'`
+      }
+      break
+    case 'solid':
+    default:
+      vueBackgroundStyle = `backgroundColor: '${backgroundColor}'`
+      break
+  }
   
   return `<template>
-  <div class="page-container" :style="{ width: '${width}px', minHeight: '${height}px', backgroundColor: '${backgroundColor}' }">
+  <div class="page-container" :style="{ width: '${width}px', minHeight: '${height}px', ${vueBackgroundStyle} }">
 ${templateContent}
   </div>
 </template>
@@ -1921,17 +2176,18 @@ function generateVueComponentTemplate(component, allComponents, imagePaths, inde
     `top: '${topPercent}%'`,
     `width: '${widthPercent}%'`,
     `height: '${heightPercent}%'`,
+    `zIndex: ${component.zIndex || 1}`,
     style.backgroundColor ? `backgroundColor: '${style.backgroundColor}'` : '',
     style.opacity && style.opacity !== 1 ? `opacity: ${style.opacity}` : '',
-    style.borderRadius ? `borderRadius: '${style.borderRadius}px'` : '',
+    style.borderRadius ? `borderRadius: '${withUnit(style.borderRadius)}'` : '',
     getPaddingCSS(style) ? `padding: '${getPaddingCSS(style)}'` : '',
     getShadowCSS(style) ? `boxShadow: '${getShadowCSS(style)}'` : '',
-    style.rotate ? `transform: 'rotate(${style.rotate}deg)'` : '',
-    style.fontSize ? `fontSize: '${style.fontSize}px'` : '',
+    style.rotate ? `transform: 'rotate(${withUnit(style.rotate, 'deg')})'` : '',
+    style.fontSize ? `fontSize: '${withUnit(style.fontSize)}'` : '',
     style.color ? `color: '${style.color}'` : '',
     style.fontWeight ? `fontWeight: '${style.fontWeight}'` : '',
     style.lineHeight ? `lineHeight: '${style.lineHeight}'` : '',
-    style.letterSpacing ? `letterSpacing: '${style.letterSpacing}px'` : '',
+    style.letterSpacing ? `letterSpacing: '${withUnit(style.letterSpacing)}'` : '',
     style.textDecoration && style.textDecoration !== 'none' ? `textDecoration: '${style.textDecoration}'` : '',
     style.textTransform && style.textTransform !== 'none' ? `textTransform: '${style.textTransform}'` : '',
     style.textAlign ? `textAlign: '${style.textAlign}'` : '',
@@ -1995,7 +2251,8 @@ function generateVueComponentTemplate(component, allComponents, imagePaths, inde
       return `${padding}<a href="${escapeAttr(props.href || '#')}" class="${className}" :style="{ ${baseStyle}, textDecoration: 'none' }">${escapeHTML(props.content || '链接')}</a>`
     
     case 'datetime': {
-      return `${padding}<div class="${className} datetime-widget" :style="{ ${baseStyle} }" :id="datetimeId" ref="datetimeRef"></div>`
+      const datetimeId = `datetime-${component.id}`
+      return `${padding}<div class="${className} datetime-widget" :style="{ ${baseStyle} }" :id="datetimeIds['${datetimeId}']"></div>`
     }
     
     case 'navMenu': {
@@ -2427,11 +2684,12 @@ function generateVueStyles(components) {
  */
 function generateVueScript(components) {
   const hasTabs = components.some(c => c.type === 'tabs')
-  const hasDatetime = components.some(c => c.type === 'datetime')
+  const datetimeComponents = components.filter(c => c.type === 'datetime')
+  const hasDatetime = datetimeComponents.length > 0
   const hasForms = components.some(c => ['loginForm', 'registerForm', 'contactForm', 'searchForm', 'commentForm', 'customForm'].includes(c.type))
   
   let scriptLines = []
-  
+
   // 导入语句
   scriptLines.push('import { ref, onMounted, onUnmounted } from \'vue\'')
   
@@ -2450,9 +2708,12 @@ function generateVueScript(components) {
   if (hasDatetime) {
     scriptLines.push('')
     scriptLines.push('// 日期时间组件')
-    scriptLines.push('const datetimeId = ref(\'datetime-\' + Date.now())')
-    scriptLines.push('const datetimeRef = ref(null)')
+    scriptLines.push('const datetimeIds = ref({})')
     scriptLines.push('let datetimeInterval = null')
+    datetimeComponents.forEach((comp, index) => {
+      const datetimeId = `datetime-${comp.id}`
+      scriptLines.push(`datetimeIds.value['${datetimeId}'] = '${datetimeId}'`)
+    })
   }
   
   // 方法
@@ -2564,10 +2825,72 @@ function generateVueScript(components) {
     scriptLines.push('  const seconds = String(now.getSeconds()).padStart(2, \'0\')')
     scriptLines.push('  const weekDays = [\'周日\', \'周一\', \'周二\', \'周三\', \'周四\', \'周五\', \'周六\']')
     scriptLines.push('  const week = weekDays[now.getDay()]')
-    scriptLines.push('  let dateTimeText = year + \'-\' + month + \'-\' + day + \' \' + hours + \':\' + minutes + \':\' + seconds')
-    scriptLines.push('  dateTimeText += \' \' + week')
-    scriptLines.push('  const el = document.getElementById(datetimeId.value)')
-    scriptLines.push('  if (el) el.textContent = dateTimeText')
+    scriptLines.push('  function padZero(n) { return String(n).padStart(2, \'0\') }')
+    scriptLines.push('  function getAmPm(h) { return h >= 12 ? \'下午\' : \'上午\' }')
+    scriptLines.push('  function get12Hours(h) { var h12 = h % 12; return h12 === 0 ? 12 : h12 }')
+    datetimeComponents.forEach(comp => {
+      const compProps = comp.props || {}
+      const displayType = compProps.displayType || 'datetime'
+      const styleType = compProps.styleType || 'digital'
+      const showWeek = compProps.showWeek === true
+      const showAmPm = compProps.showAmPm === true
+      const showSeconds = compProps.showSeconds !== false
+      const datetimeId = `datetime-${comp.id}`
+      scriptLines.push(`  {`)
+      scriptLines.push(`    let dateTimeText = ''`)
+      scriptLines.push(`    const displayTypeValue = '${displayType}'`)
+      scriptLines.push(`    const styleTypeValue = '${styleType}'`)
+      scriptLines.push(`    if (styleTypeValue === 'traditional') {`)
+      scriptLines.push(`      if (displayTypeValue === 'date' || displayTypeValue === 'datetime') {`)
+      scriptLines.push(`        dateTimeText = year + '年' + (now.getMonth() + 1) + '月' + day + '日'`)
+      scriptLines.push(`        if (displayTypeValue === 'datetime') {`)
+      scriptLines.push(`          if (${showAmPm}) {`)
+      scriptLines.push(`            dateTimeText += ' ' + getAmPm(hours) + ' ' + get12Hours(hours) + '点' + minutes + '分'`)
+      scriptLines.push(`          } else {`)
+      scriptLines.push(`            dateTimeText += ' ' + hours + '时' + minutes + '分'`)
+      scriptLines.push(`            if (${showSeconds}) dateTimeText += seconds + '秒'`)
+      scriptLines.push(`          }`)
+      scriptLines.push(`        }`)
+      scriptLines.push(`      } else {`)
+      scriptLines.push(`        if (${showAmPm}) {`)
+      scriptLines.push(`          dateTimeText = getAmPm(hours) + ' ' + get12Hours(hours) + ':' + minutes`)
+      scriptLines.push(`        } else {`)
+      scriptLines.push(`          dateTimeText = hours + ':' + minutes`)
+      scriptLines.push(`          if (${showSeconds}) dateTimeText += ':' + seconds`)
+      scriptLines.push(`        }`)
+      scriptLines.push(`      }`)
+      scriptLines.push(`    } else if (styleTypeValue === 'compact') {`)
+      scriptLines.push(`      if (displayTypeValue === 'date' || displayTypeValue === 'datetime') {`)
+      scriptLines.push(`        dateTimeText = month + '/' + day`)
+      scriptLines.push(`        if (displayTypeValue === 'datetime') dateTimeText += ' ' + padZero(hours) + ':' + minutes`)
+      scriptLines.push(`      } else {`)
+      scriptLines.push(`        dateTimeText = padZero(hours) + ':' + minutes`)
+      scriptLines.push(`      }`)
+      scriptLines.push(`    } else {`)
+      scriptLines.push(`      if (displayTypeValue === 'date' || displayTypeValue === 'datetime') {`)
+      scriptLines.push(`        dateTimeText = year + '-' + month + '-' + day`)
+      scriptLines.push(`        if (displayTypeValue === 'datetime') {`)
+      scriptLines.push(`          if (${showAmPm}) {`)
+      scriptLines.push(`            dateTimeText += ' ' + getAmPm(hours) + ' ' + get12Hours(hours) + ':' + minutes`)
+      scriptLines.push(`          } else {`)
+      scriptLines.push(`            dateTimeText += ' ' + padZero(hours) + ':' + minutes`)
+      scriptLines.push(`            if (${showSeconds}) dateTimeText += ':' + seconds`)
+      scriptLines.push(`          }`)
+      scriptLines.push(`        }`)
+      scriptLines.push(`      } else {`)
+      scriptLines.push(`        if (${showAmPm}) {`)
+      scriptLines.push(`          dateTimeText = getAmPm(hours) + ' ' + get12Hours(hours) + ':' + minutes`)
+      scriptLines.push(`        } else {`)
+      scriptLines.push(`          dateTimeText = padZero(hours) + ':' + minutes`)
+      scriptLines.push(`          if (${showSeconds}) dateTimeText += ':' + seconds`)
+      scriptLines.push(`        }`)
+      scriptLines.push(`      }`)
+      scriptLines.push(`    }`)
+      scriptLines.push(`    if (${showWeek}) dateTimeText += ' ' + week`)
+      scriptLines.push(`    const el = document.getElementById(datetimeIds.value['${datetimeId}'])`)
+      scriptLines.push(`    if (el) el.textContent = dateTimeText`)
+      scriptLines.push(`  }`)
+    })
     scriptLines.push('}')
   }
   

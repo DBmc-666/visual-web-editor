@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useEditor, COMPONENT_DEFAULTS, COMPONENT_CATEGORIES } from '../../stores/editor'
 
-const { addComponent, setDraggingType, clearDraggingType, updatePageSize, updatePage, resetPage, addComponentFromConfig: addComponentFromConfigStore, page } = useEditor()
+const { addComponent, setDraggingType, clearDraggingType, applyPageTemplate, applyComponents, page } = useEditor()
 
 // 当前激活的标签页
 const activeTab = ref('components')
@@ -63,8 +63,7 @@ const presetPages = [
         // 导航栏 - 使用 navMenu 组件
         { type: 'navMenu', left: 0, top: 0, width: 1200, height: 70, style: { backgroundColor: '#ffffff', borderBottom: '1px solid #e8e8e8', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }, props: { logo: '企业名称', logoUrl: '#', menuItems: '首页|#\n关于我们|#about\n产品中心|#product\n新闻动态|#news\n联系我们|#contact', activeIndex: 0 }, zIndex: 2 },
         // Hero区域
-        { type: 'container', left: 0, top: 70, width: 1200, height: 450, style: { backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }, props: {}, zIndex: 1 },
-        { type: 'container', left: 0, top: 70, width: 1200, height: 450, style: { background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }, props: {}, zIndex: 1 },
+        { type: 'container', left: 0, top: 70, width: 1200, height: 450, style: { backgroundType: 'gradient-linear', backgroundGradientStart: '#667eea', backgroundGradientEnd: '#764ba2', backgroundGradientAngle: 135 }, props: {}, zIndex: 1 },
         { type: 'text', left: 300, top: 150, width: 600, height: 90, style: { fontSize: 52, fontWeight: 'bold', color: '#ffffff', textAlign: 'center', lineHeight: '1.3' }, props: { content: '创新科技 引领未来' }, zIndex: 2 },
         { type: 'text', left: 350, top: 260, width: 500, height: 60, style: { fontSize: 18, color: 'rgba(255,255,255,0.9)', textAlign: 'center', lineHeight: '1.8' }, props: { content: '专注于为企业提供创新的数字化解决方案，助力企业转型升级，创造更大价值。' }, zIndex: 2 },
         { type: 'button', left: 440, top: 350, width: 160, height: 50, style: { backgroundColor: '#ffffff', color: '#667eea', borderRadius: 25, fontSize: 16, fontWeight: 'bold', textAlign: 'center', lineHeight: '50px' }, props: { content: '了解更多', actionType: 'link', href: '#about', target: '_self' }, zIndex: 2 },
@@ -103,7 +102,7 @@ const presetPages = [
         { type: 'text', left: 410, top: 1470, width: 280, height: 60, style: { fontSize: 14, color: '#666666', textAlign: 'center', lineHeight: '1.5', padding: '0 10px' }, props: { content: '严格的数据安全措施，保护您的信息安全，让您放心使用。' }, zIndex: 2 },
         { type: 'text', left: 720, top: 1470, width: 280, height: 60, style: { fontSize: 14, color: '#666666', textAlign: 'center', lineHeight: '1.5', padding: '0 10px' }, props: { content: '持续创新，不断探索新技术，为客户提供更优质的解决方案。' }, zIndex: 2 },
         // CTA行动号召区域
-        { type: 'container', left: 150, top: 1600, width: 900, height: 200, style: { background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 16 }, props: {}, zIndex: 1 },
+        { type: 'container', left: 150, top: 1600, width: 900, height: 200, style: { backgroundType: 'gradient-linear', backgroundGradientStart: '#667eea', backgroundGradientEnd: '#764ba2', backgroundGradientAngle: 135, borderRadius: 16 }, props: {}, zIndex: 1 },
         { type: 'text', left: 250, top: 1640, width: 400, height: 40, style: { fontSize: 32, fontWeight: 'bold', color: '#ffffff', textAlign: 'center' }, props: { content: '准备好开始了吗？' }, zIndex: 2 },
         { type: 'text', left: 200, top: 1700, width: 500, height: 30, style: { fontSize: 16, color: 'rgba(255,255,255,0.9)', textAlign: 'center' }, props: { content: '立即联系我们，开启您的数字化转型之旅' }, zIndex: 2 },
         { type: 'button', left: 370, top: 1745, width: 160, height: 50, style: { backgroundColor: '#ffffff', color: '#667eea', borderRadius: 25, fontSize: 16, fontWeight: 'bold', textAlign: 'center', lineHeight: '50px' }, props: { content: '立即咨询', actionType: 'link', href: '#contact', target: '_self' }, zIndex: 2 },
@@ -138,14 +137,14 @@ const presetPages = [
         
         // 筛选标签
         { type: 'text', left: 450, top: 240, width: 60, height: 24, style: { fontSize: 14, color: '#666666', fontWeight: '500' }, props: { content: '筛选:' }, zIndex: 3 },
-        { type: 'button', left: 520, top: 235, width: 80, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 13 }, props: { text: '全部' }, zIndex: 3 },
-        { type: 'button', left: 610, top: 235, width: 80, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { text: '新品' }, zIndex: 3 },
-        { type: 'button', left: 700, top: 235, width: 80, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { text: '热销' }, zIndex: 3 },
-        { type: 'button', left: 790, top: 235, width: 80, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { text: '特惠' }, zIndex: 3 },
+        { type: 'button', left: 520, top: 235, width: 80, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 13 }, props: { content: '全部' }, zIndex: 3 },
+        { type: 'button', left: 610, top: 235, width: 80, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { content: '新品' }, zIndex: 3 },
+        { type: 'button', left: 700, top: 235, width: 80, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { content: '热销' }, zIndex: 3 },
+        { type: 'button', left: 790, top: 235, width: 80, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { content: '特惠' }, zIndex: 3 },
         
         // 排序选项
         { type: 'text', left: 950, top: 240, width: 60, height: 24, style: { fontSize: 14, color: '#666666', fontWeight: '500' }, props: { content: '排序:' }, zIndex: 3 },
-        { type: 'button', left: 1020, top: 235, width: 100, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { text: '综合排序' }, zIndex: 3 },
+        { type: 'button', left: 1020, top: 235, width: 100, height: 36, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 13 }, props: { content: '综合排序' }, zIndex: 3 },
         
         // 产品卡片网格 - 第一行
         { type: 'container', left: 50, top: 320, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
@@ -154,7 +153,7 @@ const presetPages = [
         { type: 'text', left: 65, top: 560, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '高品质音效，超长续航，舒适佩戴' }, zIndex: 2 },
         { type: 'text', left: 65, top: 605, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥299' }, zIndex: 2 },
         { type: 'text', left: 180, top: 610, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥399' }, zIndex: 2 },
-        { type: 'button', left: 65, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 65, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         { type: 'container', left: 330, top: 320, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
         { type: 'image', left: 345, top: 335, width: 230, height: 180, style: { borderRadius: 6 }, props: { src: 'https://via.placeholder.com/230x180', alt: '产品图片' }, zIndex: 2 },
@@ -162,7 +161,7 @@ const presetPages = [
         { type: 'text', left: 345, top: 560, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '健康监测，运动追踪，防水设计' }, zIndex: 2 },
         { type: 'text', left: 345, top: 605, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥1299' }, zIndex: 2 },
         { type: 'text', left: 460, top: 610, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥1599' }, zIndex: 2 },
-        { type: 'button', left: 345, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 345, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         { type: 'container', left: 610, top: 320, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
         { type: 'image', left: 625, top: 335, width: 230, height: 180, style: { borderRadius: 6 }, props: { src: 'https://via.placeholder.com/230x180', alt: '产品图片' }, zIndex: 2 },
@@ -170,7 +169,7 @@ const presetPages = [
         { type: 'text', left: 625, top: 560, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '360度环绕音效，便携设计' }, zIndex: 2 },
         { type: 'text', left: 625, top: 605, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥459' }, zIndex: 2 },
         { type: 'text', left: 740, top: 610, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥599' }, zIndex: 2 },
-        { type: 'button', left: 625, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 625, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         { type: 'container', left: 890, top: 320, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
         { type: 'image', left: 905, top: 335, width: 230, height: 180, style: { borderRadius: 6 }, props: { src: 'https://via.placeholder.com/230x180', alt: '产品图片' }, zIndex: 2 },
@@ -178,7 +177,7 @@ const presetPages = [
         { type: 'text', left: 905, top: 560, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '热插拔轴体，RGB背光，全键无冲' }, zIndex: 2 },
         { type: 'text', left: 905, top: 605, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥699' }, zIndex: 2 },
         { type: 'text', left: 1020, top: 610, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥899' }, zIndex: 2 },
-        { type: 'button', left: 905, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 905, top: 640, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         // 产品卡片网格 - 第二行
         { type: 'container', left: 50, top: 660, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
@@ -187,7 +186,7 @@ const presetPages = [
         { type: 'text', left: 65, top: 900, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '15W快充，兼容多设备' }, zIndex: 2 },
         { type: 'text', left: 65, top: 945, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥159' }, zIndex: 2 },
         { type: 'text', left: 180, top: 950, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥199' }, zIndex: 2 },
-        { type: 'button', left: 65, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 65, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         { type: 'container', left: 330, top: 660, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
         { type: 'image', left: 345, top: 675, width: 230, height: 180, style: { borderRadius: 6 }, props: { src: 'https://via.placeholder.com/230x180', alt: '产品图片' }, zIndex: 2 },
@@ -195,7 +194,7 @@ const presetPages = [
         { type: 'text', left: 345, top: 900, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '主动降噪，Hi-Res认证' }, zIndex: 2 },
         { type: 'text', left: 345, top: 945, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥1599' }, zIndex: 2 },
         { type: 'text', left: 460, top: 950, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥1999' }, zIndex: 2 },
-        { type: 'button', left: 345, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 345, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         { type: 'container', left: 610, top: 660, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
         { type: 'image', left: 625, top: 675, width: 230, height: 180, style: { borderRadius: 6 }, props: { src: 'https://via.placeholder.com/230x180', alt: '产品图片' }, zIndex: 2 },
@@ -203,7 +202,7 @@ const presetPages = [
         { type: 'text', left: 625, top: 900, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '16000DPI，RGB灯效，人体工学' }, zIndex: 2 },
         { type: 'text', left: 625, top: 945, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥399' }, zIndex: 2 },
         { type: 'text', left: 740, top: 950, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥499' }, zIndex: 2 },
-        { type: 'button', left: 625, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 625, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         { type: 'container', left: 890, top: 660, width: 260, height: 320, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }, props: {}, zIndex: 1 },
         { type: 'image', left: 905, top: 675, width: 230, height: 180, style: { borderRadius: 6 }, props: { src: 'https://via.placeholder.com/230x180', alt: '产品图片' }, zIndex: 2 },
@@ -211,17 +210,17 @@ const presetPages = [
         { type: 'text', left: 905, top: 900, width: 230, height: 40, style: { fontSize: 12, color: '#999999', lineHeight: '1.5' }, props: { content: '多角度调节，稳固耐用' }, zIndex: 2 },
         { type: 'text', left: 905, top: 945, width: 100, height: 28, style: { fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }, props: { content: '¥89' }, zIndex: 2 },
         { type: 'text', left: 1020, top: 950, width: 80, height: 20, style: { fontSize: 12, color: '#999999', textDecoration: 'line-through' }, props: { content: '¥119' }, zIndex: 2 },
-        { type: 'button', left: 905, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '立即购买' }, zIndex: 2 },
+        { type: 'button', left: 905, top: 980, width: 230, height: 36, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '立即购买' }, zIndex: 2 },
         
         // 分页区域
         { type: 'container', left: 50, top: 1000, width: 1100, height: 60, style: { backgroundColor: '#ffffff', borderRadius: 8, padding: '10px' }, props: {}, zIndex: 2 },
-        { type: 'button', left: 480, top: 1010, width: 60, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { text: '上一页' }, zIndex: 3 },
-        { type: 'button', left: 550, top: 1010, width: 40, height: 40, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { text: '1' }, zIndex: 3 },
-        { type: 'button', left: 600, top: 1010, width: 40, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { text: '2' }, zIndex: 3 },
-        { type: 'button', left: 650, top: 1010, width: 40, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { text: '3' }, zIndex: 3 },
+        { type: 'button', left: 480, top: 1010, width: 60, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { content: '上一页' }, zIndex: 3 },
+        { type: 'button', left: 550, top: 1010, width: 40, height: 40, style: { backgroundColor: '#1890ff', color: '#ffffff', borderRadius: 4, fontSize: 14 }, props: { content: '1' }, zIndex: 3 },
+        { type: 'button', left: 600, top: 1010, width: 40, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { content: '2' }, zIndex: 3 },
+        { type: 'button', left: 650, top: 1010, width: 40, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { content: '3' }, zIndex: 3 },
         { type: 'text', left: 700, top: 1020, width: 40, height: 20, style: { fontSize: 14, color: '#999999' }, props: { content: '...' }, zIndex: 3 },
-        { type: 'button', left: 750, top: 1010, width: 40, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { text: '10' }, zIndex: 3 },
-        { type: 'button', left: 800, top: 1010, width: 60, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { text: '下一页' }, zIndex: 3 },
+        { type: 'button', left: 750, top: 1010, width: 40, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { content: '10' }, zIndex: 3 },
+        { type: 'button', left: 800, top: 1010, width: 60, height: 40, style: { backgroundColor: '#f5f5f5', color: '#666666', borderRadius: 4, fontSize: 14 }, props: { content: '下一页' }, zIndex: 3 },
         
         // 页脚
         { type: 'container', left: 0, top: 1100, width: 1200, height: 200, style: { backgroundColor: '#2c3e50', padding: '40px 50px' }, props: {}, zIndex: 1 },
@@ -566,69 +565,28 @@ function handleDragEnd() {
   clearDraggingType()
 }
 
-// 应用预设页面（完整网页模板）
+// 应用预设页面（完整网页模板，原子操作：一次撤销可整体回退）
 function applyPresetPage(page) {
   console.log('applyPresetPage called with:', page.name)
-  resetPage()
-  updatePage({
-    width: page.config.width,
-    height: page.config.height,
-    backgroundColor: page.config.backgroundColor
-  })
-  // 添加组件
-  page.config.components.forEach(comp => {
-    const newComp = {
-      id: generateId(comp.type),
-      type: comp.type,
-      name: COMPONENT_DEFAULTS[comp.type]?.name || comp.type,
-      left: comp.left,
-      top: comp.top,
-      width: comp.width,
-      height: comp.height,
-      style: { ...comp.style },
-      props: { ...comp.props },
-      zIndex: comp.zIndex || 3
-    }
-    addComponentFromConfig(newComp)
-  })
+  applyPageTemplate(page.config)
   console.log('applyPresetPage completed')
 }
 
-// 应用预设布局（添加到现有页面）
+// 应用预设布局（添加到现有页面，原子操作）
 function applyPresetLayout(layout) {
   console.log('applyPresetLayout called with:', layout.name)
   // 计算布局放置位置（页面中心）
   const centerX = Math.max(0, (page.width - 800) / 2)
   const centerY = Math.max(0, (page.height - 400) / 2)
   
-  // 添加组件到现有页面
-  layout.components.forEach(comp => {
-    const newComp = {
-      id: generateId(comp.type),
-      type: comp.type,
-      name: COMPONENT_DEFAULTS[comp.type]?.name || comp.type,
-      left: comp.left + centerX,
-      top: comp.top + centerY,
-      width: comp.width,
-      height: comp.height,
-      style: { ...comp.style },
-      props: { ...comp.props },
-      zIndex: comp.zIndex || 3
-    }
-    addComponentFromConfig(newComp)
-  })
+  // 添加组件到现有页面（统一偏移）
+  const offsetComponents = layout.components.map(comp => ({
+    ...comp,
+    left: comp.left + centerX,
+    top: comp.top + centerY
+  }))
+  applyComponents(offsetComponents, { replace: false })
   console.log('applyPresetLayout completed')
-}
-
-// 从配置添加组件
-function addComponentFromConfig(config) {
-  // 直接使用解构出的方法
-  addComponentFromConfigStore(config)
-}
-
-// 生成ID
-function generateId(type) {
-  return `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 </script>
 

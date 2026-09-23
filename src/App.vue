@@ -6,6 +6,7 @@ import Canvas from './components/layout/Canvas.vue'
 import PropertyPanel from './components/panels/PropertyPanel.vue'
 import StatusBar from './components/layout/StatusBar.vue'
 import FormDisplay from './components/FormDisplay.vue'
+import AiPanel from './components/panels/AiPanel.vue'
 import { useEditor } from './stores/editor'
 import { useCanvasInteraction } from './composables/useCanvasInteraction'
 
@@ -41,6 +42,9 @@ const showPropertyPanel = computed(() => !previewMode.value)
 
     <!-- 表单显示组件 -->
     <FormDisplay :components="page.components" />
+
+    <!-- AI 辅助建站面板 -->
+    <AiPanel />
   </div>
 </template>
 

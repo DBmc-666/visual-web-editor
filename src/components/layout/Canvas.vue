@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useEditor } from '../../stores/editor'
+import { useEditor, BACKGROUND_TYPES } from '../../stores/editor'
 import CanvasItem from '../canvas/CanvasItem.vue'
 import GuideLayer from '../canvas/GuideLayer.vue'
 
@@ -22,15 +22,41 @@ const canvasRef = ref(null)
 
 
 // 计算画布样式
-const canvasStyle = computed(() => ({
-  width: `${page.width}px`,
-  height: `${page.height}px`,
-  backgroundColor: page.backgroundColor
-}))
+const canvasStyle = computed(() => {
+  const baseStyle = {
+    width: `${page.width}px`,
+    height: `${page.height}px`
+  }
+
+  switch (page.backgroundType) {
+    case BACKGROUND_TYPES.GRADIENT_LINEAR:
+      baseStyle.backgroundImage = `linear-gradient(${page.backgroundGradientAngle}deg, ${page.backgroundGradientStart}, ${page.backgroundGradientEnd})`
+      break
+    case BACKGROUND_TYPES.GRADIENT_RADIAL:
+      baseStyle.backgroundImage = `radial-gradient(circle, ${page.backgroundGradientStart}, ${page.backgroundGradientEnd})`
+      break
+    case BACKGROUND_TYPES.IMAGE:
+      if (page.backgroundImage) {
+        baseStyle.backgroundImage = `url(${page.backgroundImage})`
+        baseStyle.backgroundSize = page.backgroundImageSize
+        baseStyle.backgroundPosition = page.backgroundImagePosition
+        baseStyle.backgroundRepeat = page.backgroundImageRepeat
+      } else {
+        baseStyle.backgroundColor = page.backgroundColor
+      }
+      break
+    case BACKGROUND_TYPES.SOLID:
+    default:
+      baseStyle.backgroundColor = page.backgroundColor
+      break
+  }
+
+  return baseStyle
+})
 
 // 画布容器样式
 const canvasContainerStyle = computed(() => ({
-  transform: `scale(${zoom.value})`
+  transform: `scale(${previewMode.value ? 1 : zoom.value})`
 }))
 
 // 按层级排序组件
