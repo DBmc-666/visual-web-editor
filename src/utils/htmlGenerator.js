@@ -83,6 +83,20 @@ function withUnit(value, unit = 'px') {
 }
 
 /**
+ * 取组件生效的文字对齐方式
+ * 预览侧（TextWidget / ButtonWidget / LinkWidget）的对齐来自 props.textAlign，
+ * 而属性面板也把对齐写入 props；导出时若只读 style.textAlign 会导致对齐设置丢失，
+ * 因此这里统一做回退，保证「预览与导出一致」。
+ * @param {Object} component - 组件数据
+ * @returns {string} 对齐值，未设置时返回空字符串
+ */
+function getEffectiveTextAlign(component) {
+  const style = component?.style || {}
+  const props = component?.props || {}
+  return style.textAlign || props.textAlign || ''
+}
+
+/**
  * 计算CSS内边距样式
  * 支持分别设置四个方向或统一设置
  * @param {Object} style - 组件样式对象
@@ -191,8 +205,9 @@ function componentStyleToCSSClass(component, pageWidth, pageHeight) {
   if (style.textDecoration && style.textDecoration !== 'none') cssParts.push(`  text-decoration: ${style.textDecoration};`)
   if (style.textTransform && style.textTransform !== 'none') cssParts.push(`  text-transform: ${style.textTransform};`)
 
-  // 文本对齐
-  if (style.textAlign) cssParts.push(`  text-align: ${style.textAlign};`)
+  // 文本对齐（style.textAlign 优先，回退 props.textAlign，保证与预览一致）
+  const effectiveTextAlign = getEffectiveTextAlign(component)
+  if (effectiveTextAlign) cssParts.push(`  text-align: ${effectiveTextAlign};`)
   
   // 文本换行处理，确保预览和生成的网页一致
   cssParts.push(`  white-space: pre-wrap;`)
@@ -218,86 +233,6 @@ function componentStyleToCSSClass(component, pageWidth, pageHeight) {
   return cssParts.join('\n')
 }
 
-/**
- * 将样式对象转换为内联样式字符串（用于简单组件）
- * @param {Object} component - 组件数据
- * @param {number} pageWidth - 页面设计宽度
- * @param {number} pageHeight - 页面设计高度
- * @returns {string}
- */
-function componentStyleToString(component, pageWidth, pageHeight) {
-  const style = component.style || {}
-  const cssParts = []
-
-  // 位置和尺寸 - 使用百分比实现响应式
-  const leftPercent = (component.left / pageWidth) * 100
-  const topPercent = (component.top / pageHeight) * 100
-  const widthPercent = (component.width / pageWidth) * 100
-  const heightPercent = (component.height / pageHeight) * 100
-
-  cssParts.push(`position: absolute`)
-  cssParts.push(`left: ${leftPercent}%`)
-  cssParts.push(`top: ${topPercent}%`)
-  cssParts.push(`width: ${widthPercent}%`)
-  cssParts.push(`height: ${heightPercent}%`)
-
-  // 背景
-  const bgType = style?.backgroundType || 'solid'
-  switch (bgType) {
-    case 'gradient-linear':
-      const angle = style?.backgroundGradientAngle || 180
-      const startColor = style?.backgroundGradientStart || '#ffffff'
-      const endColor = style?.backgroundGradientEnd || '#f5f5f5'
-      cssParts.push(`background-image: linear-gradient(${angle}deg, ${startColor}, ${endColor})`)
-      break
-    case 'gradient-radial':
-      const radialStart = style?.backgroundGradientStart || '#ffffff'
-      const radialEnd = style?.backgroundGradientEnd || '#f5f5f5'
-      cssParts.push(`background-image: radial-gradient(circle, ${radialStart}, ${radialEnd})`)
-      break
-    case 'solid':
-    default:
-      if (style?.backgroundColor) cssParts.push(`background-color: ${style.backgroundColor}`)
-      break
-  }
-  
-  // 透明度
-  if (style.opacity && style.opacity !== 1) cssParts.push(`opacity: ${style.opacity}`)
-
-  // 边框
-  const border = getBorderCSS(style)
-  if (border) cssParts.push(`border: ${border}`)
-  if (style.borderRadius) cssParts.push(`border-radius: ${withUnit(style.borderRadius)}`)
-
-  // 内边距
-  const padding = getPaddingCSS(style)
-  if (padding) cssParts.push(`padding: ${padding}`)
-
-  // 阴影
-  const shadow = getShadowCSS(style)
-  if (shadow) cssParts.push(`box-shadow: ${shadow}`)
-
-  // 旋转
-  if (style.rotate) cssParts.push(`transform: rotate(${withUnit(style.rotate, 'deg')})`)
-
-  // 文字样式
-  if (style.fontSize) cssParts.push(`font-size: ${withUnit(style.fontSize)}`)
-  if (style.color) cssParts.push(`color: ${style.color}`)
-  if (style.fontWeight) cssParts.push(`font-weight: ${style.fontWeight}`)
-  if (style.lineHeight) cssParts.push(`line-height: ${style.lineHeight}`)
-  if (style.letterSpacing) cssParts.push(`letter-spacing: ${withUnit(style.letterSpacing)}`)
-  if (style.textDecoration && style.textDecoration !== 'none') cssParts.push(`text-decoration: ${style.textDecoration}`)
-  if (style.textTransform && style.textTransform !== 'none') cssParts.push(`text-transform: ${style.textTransform}`)
-  
-  // 文本换行处理，确保预览和生成的网页一致
-  cssParts.push(`white-space: pre-wrap`)
-  cssParts.push(`word-wrap: break-word`)
-
-  // 盒模型
-  cssParts.push(`box-sizing: border-box`)
-
-  return cssParts.join('; ')
-}
 
 /**
  * 从 base64 提取图片数据
@@ -335,14 +270,12 @@ function extractBase64Image(base64) {
 function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
   const { type, props = {} } = component
   const style = component.style || {}
-  const inlineStyle = componentStyleToString(component, pageWidth, pageHeight)
 
   switch (type) {
     case 'text':
       return {
         tag: 'div',
         content: escapeHTML(props.content || '文本'),
-        style: inlineStyle,
         attrs: ''
       }
 
@@ -363,7 +296,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
         return {
           tag: 'a',
           content: imgTag,
-          style: inlineStyle,
           attrs: `href="${imageHref}" target="${imageTarget}"`
         }
       }
@@ -371,7 +303,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'div',
         content: imgTag,
-        style: inlineStyle,
         attrs: ''
       }
 
@@ -403,7 +334,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'button',
         content: escapeHTML(btnContent),
-        style: inlineStyle + '; border: none; cursor: pointer;',
         attrs: `id="${buttonId}" ${onClickAttr}`
       }
 
@@ -411,7 +341,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'div',
         content: '',
-        style: inlineStyle,
         attrs: ''
       }
 
@@ -446,7 +375,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'form',
         content: loginFormContent,
-        style: inlineStyle,
         attrs: `id="${loginFormId}" action="${escapeAttr(loginApiUrl)}" method="${escapeAttr(loginApiMethod)}"`
       }
 
@@ -487,7 +415,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'form',
         content: registerFormContent,
-        style: inlineStyle,
         attrs: `id="${registerFormId}" action="${escapeAttr(registerApiUrl)}" method="${escapeAttr(registerApiMethod)}"`
       }
 
@@ -548,7 +475,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'form',
         content: contactFormContent,
-        style: inlineStyle,
         attrs: `id="${contactFormId}" action="${escapeAttr(contactApiUrl)}" method="${escapeAttr(contactApiMethod)}"`
       }
 
@@ -594,7 +520,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'form',
         content: searchFormContent,
-        style: inlineStyle,
         attrs: `id="${searchFormId}" action="${escapeAttr(searchApiUrl)}" method="${escapeAttr(searchApiMethod)}"`
       }
 
@@ -648,7 +573,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'form',
         content: commentFormContent,
-        style: inlineStyle,
         attrs: `id="${commentFormId}" action="${escapeAttr(commentApiUrl)}" method="${escapeAttr(commentApiMethod)}"`
       }
 
@@ -729,7 +653,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'form',
         content: customFormContent,
-        style: inlineStyle,
         attrs: `id="${customFormId}" action="${escapeAttr(customApiUrl)}" method="${escapeAttr(customApiMethod)}"`
       }
 
@@ -737,7 +660,6 @@ function getComponentTag(component, imagePaths = {}, pageWidth, pageHeight) {
       return {
         tag: 'a',
         content: escapeHTML(props.content || '链接'),
-        style: inlineStyle + '; text-decoration: none;',
         attrs: `href="${escapeAttr(props.href || '#')}"`
       }
 
@@ -852,7 +774,6 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       return {
         tag: 'div',
         content: '',
-        style: inlineStyle + datetimeExtraStyle,
         attrs: `class="datetime-widget datetime-${styleType}" id="${datetimeId}"`,
         script: datetimeScript,
         datetimeId: datetimeId
@@ -891,7 +812,6 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       return {
         tag: 'nav',
         content: navMenuContent,
-        style: inlineStyle,
         attrs: `class="nav-menu-widget"`
       }
 
@@ -924,7 +844,6 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       return {
         tag: 'div',
         content: breadcrumbContent,
-        style: inlineStyle,
         attrs: `class="breadcrumb-widget"`
       }
 
@@ -995,7 +914,6 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       return {
         tag: 'div',
         content: tabsContent,
-        style: inlineStyle,
         attrs: `class="tabs-widget tabs-${tabType}"`
       }
 
@@ -1003,7 +921,6 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       return {
         tag: 'div',
         content: '',
-        style: inlineStyle,
         attrs: ''
       }
   }
@@ -2190,7 +2107,7 @@ function generateVueComponentTemplate(component, allComponents, imagePaths, inde
     style.letterSpacing ? `letterSpacing: '${withUnit(style.letterSpacing)}'` : '',
     style.textDecoration && style.textDecoration !== 'none' ? `textDecoration: '${style.textDecoration}'` : '',
     style.textTransform && style.textTransform !== 'none' ? `textTransform: '${style.textTransform}'` : '',
-    style.textAlign ? `textAlign: '${style.textAlign}'` : '',
+    (style.textAlign || props.textAlign) ? `textAlign: '${style.textAlign || props.textAlign}'` : '',
     `boxSizing: 'border-box'`
   ].filter(Boolean).join(', ')
   

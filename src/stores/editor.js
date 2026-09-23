@@ -532,7 +532,10 @@ const state = reactive({
   // 草稿状态
   draftRestored: false,     // 是否从本地草稿恢复
   draftSavedAt: null,       // 上次自动保存时间
-  draftSaving: false        // 自动保存进行中
+  draftSaving: false,       // 自动保存进行中
+
+  // 组件剪贴板（内存，用于复制/粘贴）
+  clipboard: []
 })
 
 console.log('Initial state:', state)
@@ -574,6 +577,9 @@ const selectedComponent = computed(() => {
 })
 
 const componentCount = computed(() => state.page.components.length)
+
+// 剪贴板中的组件数量（用于控制"粘贴"可用状态）
+const clipboardCount = computed(() => (state.clipboard || []).length)
 
 // 动作方法
 const actions = {
@@ -801,6 +807,175 @@ const actions = {
         component.top = snapResult.y
       }
     })
+  },
+
+  // ==================== 对齐 / 分布 ====================
+
+  /**
+   * 对齐选中的多个组件（需选中 ≥ 2 个）
+   * @param {'left'|'right'|'center-h'|'top'|'bottom'|'center-v'} type - 对齐方式
+   * @returns {number} 受影响的组件数
+   */
+  alignComponents(type) {
+    const comps = actions.getSelectedComponents()
+    if (comps.length < 2) return 0
+
+    saveHistory('alignComponents')
+
+    const minLeft = Math.min(...comps.map(c => c.left))
+    const maxRight = Math.max(...comps.map(c => c.left + c.width))
+    const minTop = Math.min(...comps.map(c => c.top))
+    const maxBottom = Math.max(...comps.map(c => c.top + c.height))
+    const centerX = (minLeft + maxRight) / 2
+    const centerY = (minTop + maxBottom) / 2
+
+    comps.forEach(c => {
+      switch (type) {
+        case 'left':     c.left = minLeft; break
+        case 'right':    c.left = maxRight - c.width; break
+        case 'center-h': c.left = Math.round(centerX - c.width / 2); break
+        case 'top':      c.top = minTop; break
+        case 'bottom':   c.top = maxBottom - c.height; break
+        case 'center-v': c.top = Math.round(centerY - c.height / 2); break
+      }
+    })
+    return comps.length
+  },
+
+  /**
+   * 等距分布选中的组件（需选中 ≥ 3 个）
+   * 保持首尾组件不动，中间组件按等间距重新排布
+   * @param {'h'|'v'} axis - 分布方向
+   * @returns {number} 受影响的组件数
+   */
+  distributeComponents(axis) {
+    const comps = actions.getSelectedComponents()
+    if (comps.length < 3) return 0
+
+    saveHistory('distributeComponents')
+
+    if (axis === 'h') {
+      const sorted = [...comps].sort((a, b) => a.left - b.left)
+      const first = sorted[0]
+      const last = sorted[sorted.length - 1]
+      const span = (last.left + last.width) - first.left
+      const totalWidth = sorted.reduce((sum, c) => sum + c.width, 0)
+      const gap = (span - totalWidth) / (sorted.length - 1)
+      let cursor = first.left + first.width + gap
+      for (let i = 1; i < sorted.length - 1; i++) {
+        sorted[i].left = Math.round(cursor)
+        cursor = sorted[i].left + sorted[i].width + gap
+      }
+    } else {
+      const sorted = [...comps].sort((a, b) => a.top - b.top)
+      const first = sorted[0]
+      const last = sorted[sorted.length - 1]
+      const span = (last.top + last.height) - first.top
+      const totalHeight = sorted.reduce((sum, c) => sum + c.height, 0)
+      const gap = (span - totalHeight) / (sorted.length - 1)
+      let cursor = first.top + first.height + gap
+      for (let i = 1; i < sorted.length - 1; i++) {
+        sorted[i].top = Math.round(cursor)
+        cursor = sorted[i].top + sorted[i].height + gap
+      }
+    }
+    return comps.length
+  },
+
+  // ==================== 复制 / 粘贴 / 微调 ====================
+
+  /**
+   * 复制选中的组件到内部剪贴板
+   * @returns {number} 复制的组件数
+   */
+  copySelected() {
+    const comps = actions.getSelectedComponents()
+    if (comps.length === 0) return 0
+    state.clipboard = JSON.parse(JSON.stringify(comps))
+    return comps.length
+  },
+
+  /**
+   * 粘贴剪贴板中的组件（带偏移，生成新 id 并选中）
+   * @param {number} offset - 粘贴位置偏移（px）
+   * @returns {number} 粘贴的组件数
+   */
+  pasteClipboard(offset = 20) {
+    if (!state.clipboard || state.clipboard.length === 0) return 0
+
+    saveHistory('pasteComponents')
+
+    const pasted = state.clipboard.map(item => {
+      const copy = JSON.parse(JSON.stringify(item))
+      copy.id = generateId(copy.type)
+      copy.left = (copy.left || 0) + offset
+      copy.top = (copy.top || 0) + offset
+      return copy
+    })
+
+    state.page.components.push(...pasted)
+    state.selectedIds = pasted.map(c => c.id)
+    state.selectedId = pasted[0].id
+    return pasted.length
+  },
+
+  /**
+   * 原地再制选中的组件（复制 + 粘贴）
+   * @param {number} offset - 偏移量
+   * @returns {number} 新组件数
+   */
+  duplicateSelected(offset = 20) {
+    const count = actions.copySelected()
+    if (count === 0) return 0
+    return actions.pasteClipboard(offset)
+  },
+
+  /**
+   * 全选页面组件
+   * @returns {number} 选中数量
+   */
+  selectAll() {
+    state.selectedIds = state.page.components.map(c => c.id)
+    state.selectedId = state.selectedIds[0] || null
+    return state.selectedIds.length
+  },
+
+  /**
+   * 方向键微调选中组件位置
+   * @param {number} dx - 水平位移
+   * @param {number} dy - 垂直位移
+   * @param {boolean} recordHistory - 是否记录历史（连续微调时只在首次记录）
+   * @returns {number} 受影响组件数
+   */
+  nudgeSelected(dx, dy, recordHistory = true) {
+    const comps = actions.getSelectedComponents()
+    if (comps.length === 0) return 0
+
+    if (recordHistory) saveHistory('nudgeComponents')
+
+    comps.forEach(c => {
+      c.left = Math.round(c.left + dx)
+      c.top = Math.round(c.top + dy)
+    })
+    return comps.length
+  },
+
+  /**
+   * 删除当前选中的全部组件（一次撤销即可恢复）
+   * @returns {number} 删除的组件数
+   */
+  removeSelected() {
+    const ids = state.selectedIds.length
+      ? [...state.selectedIds]
+      : (state.selectedId ? [state.selectedId] : [])
+    if (ids.length === 0) return 0
+
+    saveHistory('removeComponents')
+
+    state.page.components = state.page.components.filter(c => !ids.includes(c.id))
+    state.selectedId = null
+    state.selectedIds = []
+    return ids.length
   },
 
   // 更新组件属性
@@ -1572,6 +1747,7 @@ export function useEditor() {
     draggingType: computed(() => state.draggingType),
     draggingId: computed(() => state.draggingId),
     componentCount,
+    clipboardCount,
 
     // 草稿状态
     draftRestored: computed(() => state.draftRestored),

@@ -16,6 +16,7 @@ import {
 const {
   selectedComponent,
   selectedId,
+  selectedIds,
   page,
   updateComponent,
   updateComponentStyle,
@@ -23,6 +24,14 @@ const {
   updateComponentZIndex,
   removeComponent,
   updatePageSize,
+  // 多选操作：对齐 / 分布 / 复制粘贴
+  alignComponents,
+  distributeComponents,
+  copySelected,
+  pasteClipboard,
+  duplicateSelected,
+  selectAll,
+  clipboardCount,
   // 辅助线相关
   guidesVisible,
   guidesList,
@@ -1357,6 +1366,49 @@ const shadowCSS = computed(() => {
         <button class="btn-delete" @click="handleDelete">删除</button>
       </div>
 
+      <!-- 多选操作：对齐 / 分布 / 复制粘贴 -->
+      <div v-if="selectedIds.length > 0" class="property-section">
+        <h4 class="section-title">
+          🧩 多选操作
+          <span class="multi-count">{{ selectedIds.length }} 个已选</span>
+        </h4>
+
+        <!-- 对齐（需 ≥ 2 个） -->
+        <div class="action-group">
+          <div class="action-group-label">对齐</div>
+          <div class="action-grid">
+            <button class="action-btn" :disabled="selectedIds.length < 2" @click="alignComponents('left')" title="左对齐">⇤ 左对齐</button>
+            <button class="action-btn" :disabled="selectedIds.length < 2" @click="alignComponents('center-h')" title="水平居中">↔ 水平居中</button>
+            <button class="action-btn" :disabled="selectedIds.length < 2" @click="alignComponents('right')" title="右对齐">⇥ 右对齐</button>
+            <button class="action-btn" :disabled="selectedIds.length < 2" @click="alignComponents('top')" title="顶对齐">⇡ 顶对齐</button>
+            <button class="action-btn" :disabled="selectedIds.length < 2" @click="alignComponents('center-v')" title="垂直居中">↕ 垂直居中</button>
+            <button class="action-btn" :disabled="selectedIds.length < 2" @click="alignComponents('bottom')" title="底对齐">⇣ 底对齐</button>
+          </div>
+        </div>
+
+        <!-- 等距分布（需 ≥ 3 个） -->
+        <div class="action-group">
+          <div class="action-group-label">等距分布</div>
+          <div class="action-grid action-grid-2">
+            <button class="action-btn" :disabled="selectedIds.length < 3" @click="distributeComponents('h')" title="水平等距（首尾不动）">⇹ 水平等距</button>
+            <button class="action-btn" :disabled="selectedIds.length < 3" @click="distributeComponents('v')" title="垂直等距（首尾不动）">⇳ 垂直等距</button>
+          </div>
+        </div>
+
+        <!-- 复制 / 粘贴 -->
+        <div class="action-group">
+          <div class="action-group-label">编辑</div>
+          <div class="action-grid">
+            <button class="action-btn" @click="copySelected" title="复制（Ctrl+C）">复制</button>
+            <button class="action-btn" :disabled="clipboardCount === 0" @click="pasteClipboard()" title="粘贴（Ctrl+V）">粘贴</button>
+            <button class="action-btn" @click="duplicateSelected()" title="原地再制（Ctrl+D）">再制</button>
+            <button class="action-btn" @click="selectAll" title="全选（Ctrl+A）">全选</button>
+          </div>
+        </div>
+
+        <div class="action-hint">方向键微调 1px，Shift + 方向键 10px；Delete 删除选中</div>
+      </div>
+
       <!-- 位置和尺寸 -->
       <div class="property-section">
         <h4 class="section-title">📐 位置和尺寸</h4>
@@ -1899,6 +1951,64 @@ const shadowCSS = computed(() => {
 
 .btn-delete:hover {
   opacity: 0.85;
+}
+
+/* 多选操作区 */
+.multi-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-primary);
+  margin-left: 6px;
+}
+
+.action-group {
+  margin-bottom: 10px;
+}
+
+.action-group-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 5px;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.action-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.action-btn {
+  padding: 6px 4px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background-color: var(--color-bg-white);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.action-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background-color: #e6f7ff;
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action-hint {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin-top: 4px;
 }
 
 .property-section {
