@@ -100,6 +100,24 @@ AI 生成现在**知道本站有哪些页面**，并且可以**一次生成整�
 - 应用后提示会显示：创建了几个页面、串联了多少个页面跳转链接
 - 页面名重复时自动加序号（避免跳转链接产生歧义）
 
+### SEO 与页面信息
+
+每个页面都有独立的 SEO 配置（属性面板「📄 页面」→「🔍 SEO 与页面信息」）：
+
+| 字段 | 导出结果 |
+| --- | --- |
+| 浏览器标题 | `<title>`（留空时回退为页面名） |
+| 页面描述 | `<meta name="description">` + `og:description` |
+| 关键词 | `<meta name="keywords">` |
+| favicon 地址 | `<link rel="icon">` |
+| 分享配图 | `<meta property="og:image">` |
+| 页面语言 | `<html lang="...">` |
+
+- 留空的项**不会输出**对应标签；同时始终输出 `og:type` / `og:title`
+- 所有 SEO 内容都会做 HTML 转义，避免标签注入
+- **AI 会为每个页面自动填写 SEO 字段**（单页与多页生成模式都包含），生成后可在面板里微调
+- 导出整站时每个页面各自带自己的 SEO 信息
+
 ### 组件重叠会自动修复
 AI 常把"绝对定位画布"误当成文档流，把多个组件写在同一个 `top` 上，导致页面上糊成一团。
 系统在 AI 结果进入画布前会做一次几何修复（`src/utils/layoutRepair.js`）：
@@ -209,8 +227,33 @@ AI 常把"绝对定位画布"误当成文档流，把多个组件写在同一个
 - 组件仓库（自定义组件保存与复用）
 - 自动化测试入库（当前测试在开发环境临时运行）
 ## 开发说明
+
 本项目在开发过程中使用了 AI 工具辅助编写代码、调试与优化文档。
 所有核心设计与功能逻辑均由作者独立完成。
+
+### 自动化测试
+
+```bash
+# 纯逻辑测试（不联网，秒级完成，334 项断言）
+npm test
+
+# 额外包含真实 AI 接口测试（需要 Key 文件，约 2 分钟）
+set VWE_KEY_FILE=E:\path\to\key.txt
+npm run test:ai
+```
+
+测试直接运行 `src/` 下的浏览器代码（`tests/loader.mjs` 负责补全无扩展名的相对导入、
+把 `file-saver` 换成可捕获 ZIP 的桩、注入 `localStorage` 等最小环境）：
+
+| 套件 | 覆盖内容 |
+| --- | --- |
+| `tests/ai.test.mjs` | 页面链接解析、站点契约、单页/多页 Prompt、JSON 容错提取、响应解析与重叠修复 |
+| `tests/editor.test.mjs` | 画布/页面 CRUD 与隔离、多页应用与链接串联、草稿持久化与迁移、撤销重做、对齐分布、移动与锁定、图层树 |
+| `tests/export.test.mjs` | 各组件导出、隐藏组件过滤、本地图片 ZIP、多页整站 ZIP 与链接重写、SEO head 注入、Vue 导出 |
+| `tests/components.test.mjs` | 组件分类/默认配置/Schema 白名单/createComponent 四者一致性、清洗行为、页面契约 |
+| `tests/ai-live.test.mjs` | 真实接口：连接测试、单页生成、多页生成、应用与导出（校验无越界、无真实重叠） |
+
+> 测试文件均为 UTF-8 无 BOM，运行器在任一断言失败时以退出码 1 结束，可直接接入 CI。
 ## License
 
 This project is licensed under the **MIT License**.

@@ -388,6 +388,13 @@ export function sanitizePageData(data, options = {}) {
     backgroundImageSize: data.backgroundImageSize || 'cover',
     backgroundImagePosition: data.backgroundImagePosition || 'center',
     backgroundImageRepeat: data.backgroundImageRepeat || 'no-repeat',
+    // SEO / head 配置（AI 可以顺带填写，导出时注入 <head>）
+    seoTitle: typeof data.seoTitle === 'string' ? data.seoTitle : '',
+    seoDescription: typeof data.seoDescription === 'string' ? data.seoDescription : '',
+    seoKeywords: typeof data.seoKeywords === 'string' ? data.seoKeywords : '',
+    seoFavicon: typeof data.seoFavicon === 'string' ? data.seoFavicon : '',
+    seoOgImage: typeof data.seoOgImage === 'string' ? data.seoOgImage : '',
+    seoLang: typeof data.seoLang === 'string' && data.seoLang ? data.seoLang : 'zh-CN',
     components: sanitized
   }
 
@@ -446,6 +453,12 @@ export function getPageContract(page) {
     backgroundImageSize: page.backgroundImageSize,
     backgroundImagePosition: page.backgroundImagePosition,
     backgroundImageRepeat: page.backgroundImageRepeat,
+    seoTitle: page.seoTitle || '',
+    seoDescription: page.seoDescription || '',
+    seoKeywords: page.seoKeywords || '',
+    seoFavicon: page.seoFavicon || '',
+    seoOgImage: page.seoOgImage || '',
+    seoLang: page.seoLang || 'zh-CN',
     components: (page.components || []).map(comp => ({
       id: comp.id,
       type: comp.type,

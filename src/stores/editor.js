@@ -594,6 +594,13 @@ function createPageState(name = '未命名页面') {
     backgroundImageSize: 'cover',
     backgroundImagePosition: 'center',
     backgroundImageRepeat: 'no-repeat',
+    // SEO / head 配置（导出时注入到 HTML 的 <head>）
+    seoTitle: '',          // <title>（留空则用页面名）
+    seoDescription: '',    // meta description
+    seoKeywords: '',       // meta keywords
+    seoFavicon: '',        // favicon 地址（http(s) 或 data URL）
+    seoOgImage: '',        // 社交分享配图
+    seoLang: 'zh-CN',      // <html lang>
     components: []
   }
 }
@@ -648,6 +655,12 @@ function normalizePageData(p) {
   if (typeof source.backgroundImageSize === 'string') page.backgroundImageSize = source.backgroundImageSize
   if (typeof source.backgroundImagePosition === 'string') page.backgroundImagePosition = source.backgroundImagePosition
   if (typeof source.backgroundImageRepeat === 'string') page.backgroundImageRepeat = source.backgroundImageRepeat
+
+  // SEO / head 配置
+  const seoKeys = ['seoTitle', 'seoDescription', 'seoKeywords', 'seoFavicon', 'seoOgImage', 'seoLang']
+  seoKeys.forEach(key => {
+    if (typeof source[key] === 'string') page[key] = source[key]
+  })
 
   page.components = (Array.isArray(source.components) ? source.components : [])
     .map(comp => actions.normalizeComponentConfig(comp))

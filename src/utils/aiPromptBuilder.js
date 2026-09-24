@@ -81,7 +81,9 @@ const CANVAS_COORDINATE_RULES = [
 // 页面 JSON 的顶层结构（单页模式）
 const PAGE_JSON_SHAPE_RULES = [
   '## 页面 JSON 结构',
-  '- JSON 顶层包含：name, width, height, backgroundColor, backgroundType, backgroundGradientStart, backgroundGradientEnd, backgroundGradientAngle, backgroundImage, backgroundImageSize, backgroundImagePosition, backgroundImageRepeat, components。'
+  '- JSON 顶层包含：name, width, height, backgroundColor, backgroundType, backgroundGradientStart, backgroundGradientEnd, backgroundGradientAngle, backgroundImage, backgroundImageSize, backgroundImagePosition, backgroundImageRepeat, seoTitle, seoDescription, seoKeywords, components。',
+  '- **SEO 字段请一并填写**（导出时会注入 HTML 的 head）：',
+  '  seoTitle 是浏览器标题（25 字内，含品牌与主题）、seoDescription 是页面描述（80 字内，自然语言、概括页面价值）、seoKeywords 是 3~6 个关键词（逗号分隔）。'
 ].join('\n')
 
 // 组件与内容的输出规范（单页 / 多页共用）
@@ -209,10 +211,11 @@ export function buildSiteMessages({
   const multiPageShape = [
     '## 多页 JSON 结构（必须严格遵守）',
     '- JSON 顶层为：{ "siteName": "站点名称", "pages": [ 页面对象, ... ] }',
-    '- 每个页面对象包含：name, slug, width, height, backgroundColor, components（如无渐变/背景图需求，无需其他背景字段）。',
+    '- 每个页面对象包含：name, slug, width, height, backgroundColor, seoTitle, seoDescription, seoKeywords, components（如无渐变/背景图需求，无需其他背景字段）。',
     '- **slug 是该页面的英文文件名**（只用小写字母、数字、连字符），用于导出成真实文件：',
     '  首页→`index`、产品中心→`products`、关于我们→`about`、联系我们→`contact`、新闻→`news`、案例→`cases`。',
     '  即使页面名是中文，也**必须**给出英文 slug。',
+    '- **每页都要填写 SEO 字段**：seoTitle（25 字内）、seoDescription（80 字内）、seoKeywords（3~6 个，逗号分隔）。',
     '- 示例：',
     '{',
     '  "siteName": "鼎信科技官网",',

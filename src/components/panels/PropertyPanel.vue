@@ -222,6 +222,11 @@ function updatePageBgImageRepeat(repeat) {
   updatePage({ backgroundImageRepeat: repeat })
 }
 
+// 更新页面 SEO 字段（导出时注入 head）
+function updatePageSeo(key, value) {
+  updatePage({ [key]: value })
+}
+
 // 处理页面背景图片选择
 function handlePageBackgroundImageSelect(event) {
   const file = event.target.files[0]
@@ -1649,6 +1654,43 @@ const shadowCSS = computed(() => {
           </div>
         </div>
 
+        <!-- SEO 与页面信息（导出时注入 head） -->
+        <div class="seo-settings">
+          <h4 class="section-title">🔍 SEO 与页面信息</h4>
+          <div class="property-row">
+            <label>浏览器标题</label>
+            <input type="text" class="input" :value="page.seoTitle" placeholder="留空则使用页面名" @input="updatePageSeo('seoTitle', $event.target.value)" />
+          </div>
+          <div class="property-row">
+            <label>页面描述</label>
+            <textarea class="input textarea" rows="2" :value="page.seoDescription" placeholder="80 字内的页面描述，用于搜索结果与社交分享" @input="updatePageSeo('seoDescription', $event.target.value)"></textarea>
+          </div>
+          <div class="property-row">
+            <label>关键词</label>
+            <input type="text" class="input" :value="page.seoKeywords" placeholder="用逗号分隔，如：企业官网,数字化,解决方案" @input="updatePageSeo('seoKeywords', $event.target.value)" />
+          </div>
+          <div class="property-row">
+            <label>favicon 地址</label>
+            <input type="text" class="input" :value="page.seoFavicon" placeholder="https://.../favicon.ico" @input="updatePageSeo('seoFavicon', $event.target.value)" />
+          </div>
+          <div class="property-row">
+            <label>分享配图</label>
+            <input type="text" class="input" :value="page.seoOgImage" placeholder="og:image，社交分享时的配图" @input="updatePageSeo('seoOgImage', $event.target.value)" />
+          </div>
+          <div class="property-row">
+            <label>页面语言</label>
+            <select class="input" :value="page.seoLang" @change="updatePageSeo('seoLang', $event.target.value)">
+              <option value="zh-CN">简体中文 (zh-CN)</option>
+              <option value="zh-TW">繁体中文 (zh-TW)</option>
+              <option value="en">English (en)</option>
+              <option value="ja">日本語 (ja)</option>
+              <option value="ko">한국어 (ko)</option>
+            </select>
+          </div>
+          <div class="property-hint">
+            导出 HTML 时会写入 &lt;title&gt; / description / keywords / favicon / og 标签；留空的项不会输出
+          </div>
+        </div>
 
         <div class="preset-sizes">
           <label>预设尺寸</label>

@@ -28,6 +28,8 @@ function escapeHTML(str) {
 /**
  * HTML属性值转义函数
  * 用于转义HTML属性中的特殊字符，同时处理换行符和制表符
+ * 注意：`<` `>` 也必须转义——虽然双引号属性内不转义通常不会逃出属性，
+ * 但未转义的尖括号在部分解析场景（单引号属性、后续拼接）下会造成标签注入
  * @param {string} str - 需要转义的字符串
  * @returns {string} - 转义后的字符串
  */
@@ -35,6 +37,8 @@ function escapeAttr(str) {
   if (!str) return ''
   return String(str)
     .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
     .replace(/\n/g, '\\n')
@@ -1317,6 +1321,40 @@ function generatePageBackgroundCSS(pageData) {
   return cssParts.join(';\n      ')
 }
 
+/**
+ * 生成页面的 SEO 相关 head 内容
+ * title 未配置时回退为页面名；description / keywords / favicon / og:image 为空则不输出
+ * @param {Object} pageData - 页面数据
+ * @returns {{lang: string, head: string}}
+ */
+export function buildSeoHead(pageData = {}) {
+  const name = String(pageData.name || '').trim() || '未命名页面'
+  const title = String(pageData.seoTitle || '').trim() || name
+  const description = String(pageData.seoDescription || '').trim()
+  const keywords = String(pageData.seoKeywords || '').trim()
+  const favicon = String(pageData.seoFavicon || '').trim()
+  const ogImage = String(pageData.seoOgImage || '').trim()
+  const lang = String(pageData.seoLang || '').trim() || 'zh-CN'
+
+  const lines = [
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    `<title>${escapeHTML(title)}</title>`
+  ]
+
+  if (description) lines.push(`<meta name="description" content="${escapeAttr(description)}">`)
+  if (keywords) lines.push(`<meta name="keywords" content="${escapeAttr(keywords)}">`)
+  if (favicon) lines.push(`<link rel="icon" href="${escapeAttr(favicon)}">`)
+
+  // Open Graph：社交平台分享时的标题/描述/配图
+  lines.push('<meta property="og:type" content="website">')
+  lines.push(`<meta property="og:title" content="${escapeAttr(title)}">`)
+  if (description) lines.push(`<meta property="og:description" content="${escapeAttr(description)}">`)
+  if (ogImage) lines.push(`<meta property="og:image" content="${escapeAttr(ogImage)}">`)
+
+  return { lang, head: lines.join('\n  ') }
+}
+
 export function generatePageHTML(pageData, imagePaths = {}) {
   const { width = 1200, height = 800, backgroundColor = '#ffffff', components = [] } = pageData
 
@@ -1342,12 +1380,12 @@ export function generatePageHTML(pageData, imagePaths = {}) {
     return generateComponentCSS(comp, width, height)
   }).join('\n\n')
 
+  const seo = buildSeoHead(pageData)
+
   return `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${escapeAttr(seo.lang)}">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${pageData.name || '未命名页面'}</title>
+  ${seo.head}
   <style>
     /**
      * 全局样式重置
