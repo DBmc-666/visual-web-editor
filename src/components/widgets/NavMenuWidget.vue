@@ -69,6 +69,21 @@ const menuItems = computed(() => {
  */
 const activeIndex = computed(() => props.component.props?.activeIndex || 0)
 
+/**
+ * 菜单对齐方式（left | center | right）
+ * @type {ComputedRef<string>}
+ */
+const alignment = computed(() => props.component.props?.alignment || 'left')
+
+/**
+ * 菜单项容器样式：按对齐方式分配主轴
+ * @type {ComputedRef<Object>}
+ */
+const navItemsStyle = computed(() => ({
+  justifyContent:
+    alignment.value === 'center' ? 'center' : alignment.value === 'right' ? 'flex-end' : 'flex-start'
+}))
+
 // ==================== 颜色配置 ====================
 
 /**
@@ -119,7 +134,7 @@ const navItemActiveStyle = computed(() => ({
   <div class="nav-menu-widget" :style="menuStyle">
     <div class="nav-menu-container">
       <a :href="logoUrl" class="nav-logo" :style="logoStyle" @click.prevent>{{ logo }}</a>
-      <div class="nav-items">
+      <div class="nav-items" :style="navItemsStyle">
         <a
           v-for="(item, index) in menuItems"
           :key="index"

@@ -227,6 +227,34 @@ function updatePageSeo(key, value) {
   updatePage({ [key]: value })
 }
 
+// 选择视频封面本地图片（导出时会一起打包进 ZIP）
+function handleVideoPosterSelect(event) {
+  const file = event.target.files?.[0]
+  if (!file || !selectedId.value) return
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    updateComponentProps(selectedId.value, {
+      poster: e.target.result,
+      posterFileName: file.name,
+      posterLocalImage: true
+    })
+  }
+  reader.readAsDataURL(file)
+
+  event.target.value = ''
+}
+
+// 清除视频封面本地图片
+function clearVideoPoster() {
+  if (!selectedId.value) return
+  updateComponentProps(selectedId.value, {
+    poster: '',
+    posterFileName: '',
+    posterLocalImage: false
+  })
+}
+
 // 处理页面背景图片选择
 function handlePageBackgroundImageSelect(event) {
   const file = event.target.files[0]
@@ -298,6 +326,9 @@ const imageFileInput = ref(null)
 
 // 轮播图每张图片的隐藏文件输入（按索引保存 DOM 引用）
 const carouselFileInputs = ref({})
+
+// 视频封面图的隐藏文件输入
+const videoPosterInput = ref(null)
 
 // 选择本地图片
 function handleImageSelect(event) {
@@ -535,7 +566,12 @@ const componentPropsFields = {
   navMenu: [
     { key: 'logo', label: 'Logo文字', type: 'text' },
     { key: 'logoUrl', label: 'Logo链接', type: 'text' },
-    { key: 'activeIndex', label: '当前选中索引', type: 'number', min: 0, max: 100 }
+    { key: 'activeIndex', label: '当前选中索引', type: 'number', min: 0, max: 100 },
+    { key: 'alignment', label: '菜单对齐', type: 'select', options: [
+      { value: 'left', label: '左对齐' },
+      { value: 'center', label: '居中' },
+      { value: 'right', label: '右对齐' }
+    ]}
   ],
   breadcrumb: [
     { key: 'separator', label: '分隔符', type: 'text' },
@@ -597,7 +633,11 @@ const componentPropsFields = {
     { key: 'headerColor', label: '表头文字色', type: 'color' },
     { key: 'borderColor', label: '边框颜色', type: 'color' },
     { key: 'striped', label: '斑马纹', type: 'checkbox' },
-    { key: 'cellPadding', label: '单元格内边距', type: 'number', min: 2, max: 30 }
+    { key: 'cellPadding', label: '单元格内边距', type: 'number', min: 2, max: 30 },
+    { key: 'linkTarget', label: '单元格链接打开方式', type: 'select', options: [
+      { value: '_self', label: '当前窗口' },
+      { value: '_blank', label: '新窗口' }
+    ]}
   ],
 
   video: [
@@ -1992,6 +2032,30 @@ const shadowCSS = computed(() => {
               <span class="image-badge">本地图片</span>
             </div>
           </div>
+
+          <!-- 视频封面本地图片（仅视频直链模式） -->
+          <div
+            v-if="selectedComponent.type === 'video' && selectedComponent.props?.videoType !== 'iframe'"
+            class="image-upload-section"
+          >
+            <input
+              ref="videoPosterInput"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="handleVideoPosterSelect"
+            />
+            <button class="btn-upload" @click="videoPosterInput?.click()">
+              📁 选择本地封面图
+            </button>
+            <button v-if="selectedComponent.props?.posterLocalImage" class="btn-clear" @click="clearVideoPoster">
+              ✖ 清除
+            </button>
+            <div v-if="selectedComponent.props?.posterLocalImage" class="image-info">
+              <span class="image-name">{{ selectedComponent.props?.posterFileName }}</span>
+              <span class="image-badge">本地图片</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2244,6 +2308,10 @@ const shadowCSS = computed(() => {
       <!-- 表格配置（表头与数据行逐项编辑） -->
       <div v-if="selectedComponent.type === 'table'" class="property-section">
         <h4 class="section-title">📊 表格内容配置</h4>
+        <div class="property-hint">
+          单元格支持链接：写 <code>[文字](链接)</code>（如 <code>[查看详情](#page:产品详情)</code>），
+          或直接填 <code>https://</code> 开头的网址会自动变成链接
+        </div>
         <div class="custom-form-items">
           <div class="form-item-editor">
             <div class="form-item-header">

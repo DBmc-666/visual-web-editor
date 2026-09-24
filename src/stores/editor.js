@@ -521,7 +521,9 @@ export const COMPONENT_DEFAULTS = {
       headerColor: '#333333',
       borderColor: '#e8e8e8',
       striped: true,           // 斑马纹
-      cellPadding: 10          // 单元格内边距（px）
+      cellPadding: 10,         // 单元格内边距（px）
+      // 单元格链接的打开方式（单元格支持 [文字](链接) 或纯 http(s) 链接）
+      linkTarget: '_self'
     }
   },
 

@@ -213,6 +213,70 @@ export default async function run(t) {
   t.includes('导出的 HTML 含 description', seoPageHtml, '云基础设施、数据智能与协同办公')
   t.includes('导出的 HTML 含 lang', seoPageHtml, '<html lang="zh-CN">')
 
+  // ==================== 已知小缺口修复 ====================
+  t.group('navMenu 对齐 / 视频本地封面 / 表格单元格链接')
+
+  const navLeft = gen.generatePageHTML(pageWith([
+    makeComponent('navMenu', { props: { logo: 'L', menuItems: '首页|#', alignment: 'left' } })
+  ]))
+  const navCenter = gen.generatePageHTML(pageWith([
+    makeComponent('navMenu', { props: { logo: 'L', menuItems: '首页|#', alignment: 'center' } })
+  ]))
+  const navRight = gen.generatePageHTML(pageWith([
+    makeComponent('navMenu', { props: { logo: 'L', menuItems: '首页|#', alignment: 'right' } })
+  ]))
+  t.includes('navMenu 居中对齐生效', navCenter, 'justify-content: center')
+  t.includes('navMenu 右对齐生效', navRight, 'justify-content: flex-end')
+  t.includes('navMenu 默认左对齐', navLeft, 'justify-content: flex-start')
+  t.includes('Vue 导出也支持 navMenu 对齐',
+    gen.generateVueComponent({
+      name: 'N', width: 1200, height: 800, backgroundColor: '#fff',
+      components: [makeComponent('navMenu', { props: { logo: 'L', menuItems: '首页|#', alignment: 'center' } })]
+    }),
+    "justifyContent: 'center'")
+
+  // 表格单元格链接
+  const tableLinks = gen.generatePageHTML(pageWith([
+    makeComponent('table', {
+      props: {
+        headers: '产品|链接',
+        rows: '基础版|[查看详情](https://example.com/basic)\n专业版|https://example.com/pro\n旗舰版|无链接',
+        linkTarget: '_blank'
+      }
+    })
+  ]))
+  t.includes('Markdown 单元格链接渲染为 <a>', tableLinks, '<a href="https://example.com/basic"')
+  t.includes('Markdown 链接使用可读文字', tableLinks, '>查看详情</a>')
+  t.includes('纯网址单元格自动识别', tableLinks, '<a href="https://example.com/pro"')
+  t.includes('单元格链接应用 target', tableLinks, 'target="_blank"')
+  t.check('普通文本单元格不生成链接',
+    tableLinks.includes('无链接') && (tableLinks.match(/<a href=/g) || []).length === 2,
+    String((tableLinks.match(/<a href=/g) || []).length))
+  t.includes('表格单元格链接也支持 #page:',
+    gen.generatePageHTML(pageWith([
+      makeComponent('table', { props: { headers: 'A', rows: '[去关于](#page:about)' } })
+    ])),
+    'href="#page:about"')
+
+  // 视频本地封面图
+  const posterPage = pageWith([
+    makeComponent('video', {
+      id: 'vid1',
+      props: { src: 'https://e.com/v.mp4', videoType: 'file', poster: DATA_URL, posterLocalImage: true, posterFileName: 'cover.jpg' }
+    })
+  ])
+  t.check('hasLocalImages 能识别视频本地封面', gen.hasLocalImages(posterPage) === true)
+  const posterHtml = gen.generatePageHTML(posterPage, { vid1_poster: 'images/cover.png' })
+  t.check('导出时封面路径被替换', posterHtml.includes('images/cover.png') && !posterHtml.includes('data:image/png'))
+  t.check('未提供映射时保留原值（不报错）', gen.generatePageHTML(posterPage).includes('data:image/png'))
+
+  resetSavedFiles()
+  await gen.exportPageWithImages(posterPage, 'poster-test')
+  const posterZip = await loadSavedZip()
+  // 文件名沿用原名但扩展名以图片数据真实类型为准（cover.jpg + png 数据 → cover.png）
+  t.check('ZIP 内含视频封面图', posterZip.names.includes('images/cover.png'), posterZip.names.join(','))
+  t.check('导出 HTML 引用封面图', (await posterZip.read('poster-test.html')).includes('images/cover.png'))
+
   // ==================== Vue 导出 ====================
   t.group('Vue 导出')
 

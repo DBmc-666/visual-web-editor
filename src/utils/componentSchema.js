@@ -254,13 +254,14 @@ export const PROP_FIELDS = {
   },
   table: {
     headers: { type: 'string', desc: '表头，用 | 分隔列' },
-    rows: { type: 'string', desc: '数据行，每行一条，用 | 分隔列' },
+    rows: { type: 'string', desc: '数据行，每行一条，用 | 分隔列；单元格可写 [文字](链接) 或纯 http(s) 链接' },
     showHeader: { type: 'boolean', desc: '是否显示表头' },
     headerBackground: { type: 'string', desc: '表头背景色' },
     headerColor: { type: 'string', desc: '表头文字颜色' },
     borderColor: { type: 'string', desc: '边框颜色' },
     striped: { type: 'boolean', desc: '是否显示斑马纹' },
-    cellPadding: { type: 'number', desc: '单元格内边距（px）' }
+    cellPadding: { type: 'number', desc: '单元格内边距（px）' },
+    linkTarget: { type: 'string', desc: '单元格内链接的打开方式', enum: ['_self', '_blank'] }
   },
   video: {
     src: { type: 'string', desc: '视频直链或 iframe 嵌入地址' },

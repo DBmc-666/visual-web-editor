@@ -47,6 +47,33 @@ function escapeAttr(str) {
 }
 
 /**
+ * 渲染表格单元格内容（支持单元格级链接）
+ * 支持两种写法：
+ * - Markdown 链接：`[文字](链接)` → 渲染为 `<a>`（推荐，链接文字可读）
+ * - 纯链接：以 `http://` 或 `https://` 开头 → 自动识别为链接
+ * @param {string} text - 单元格原始文本
+ * @param {string} [linkTarget='_self'] - 链接打开方式
+ * @returns {string} 单元格内部 HTML
+ */
+function renderTableCellContent(text, linkTarget = '_self') {
+  const raw = String(text ?? '').trim()
+  if (!raw) return ''
+
+  const linkStyle = 'color: inherit; text-decoration: underline;'
+
+  const markdown = raw.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+  if (markdown) {
+    return `<a href="${escapeAttr(markdown[2].trim())}" target="${escapeAttr(linkTarget)}" style="${linkStyle}">${escapeHTML(markdown[1])}</a>`
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    return `<a href="${escapeAttr(raw)}" target="${escapeAttr(linkTarget)}" style="${linkStyle}">${escapeHTML(raw)}</a>`
+  }
+
+  return escapeHTML(raw)
+}
+
+/**
  * 计算CSS阴影样式
  * @param {Object} style - 组件样式对象
  * @returns {string} - CSS阴影值，无阴影时返回空字符串
@@ -790,6 +817,9 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       const navLogoUrl = props.logoUrl || '#'
       const navMenuItems = props.menuItems || '首页|#'
       const navActiveIndex = props.activeIndex || 0
+      // 菜单对齐方式（此前该属性未生效）
+      const navAlignment = props.alignment || 'left'
+      const navItemsJustify = navAlignment === 'center' ? 'center' : (navAlignment === 'right' ? 'flex-end' : 'flex-start')
       
       // 获取配置的颜色，使用默认值作为后备
       const navTextColor = style.color || '#333333'
@@ -797,7 +827,7 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       
       let navMenuContent = `
     <a href="${escapeAttr(navLogoUrl)}" class="nav-logo" style="color: ${navActiveColor};">${escapeHTML(navLogo)}</a>
-    <div class="nav-items">`
+    <div class="nav-items" style="justify-content: ${navItemsJustify};">`
       
       const navItems = navMenuItems.split('\n').filter(item => item.trim())
       navItems.forEach((item, index) => {
@@ -1012,6 +1042,7 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       const tableBorderColor = props.borderColor || '#e8e8e8'
       const tableStriped = props.striped !== false
       const tableCellPadding = Number(props.cellPadding) || 8
+      const tableLinkTarget = props.linkTarget || '_self'
       const tableCellStyle = `border: 1px solid ${tableBorderColor}; padding: ${tableCellPadding}px; text-align: left;`
 
       let tableHtml = `    <table style="width: 100%; border-collapse: collapse;">`
@@ -1028,7 +1059,7 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       tableHtml += tableRows.map((row, rowIndex) => {
         const rowBg = tableStriped && rowIndex % 2 === 1 ? ` background-color: #fafafa;` : ''
         const cells = row
-          .map(cell => `          <td style="${tableCellStyle}${rowBg}">${escapeHTML(cell)}</td>`)
+          .map(cell => `          <td style="${tableCellStyle}${rowBg}">${renderTableCellContent(cell, tableLinkTarget)}</td>`)
           .join('\n')
         return `        <tr>\n${cells}\n        </tr>`
       }).join('\n')
@@ -1044,7 +1075,8 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
     case 'video': {
       const videoSrc = props.src || ''
       const videoIsIframe = props.videoType === 'iframe'
-      const videoPoster = props.poster || ''
+      // 本地封面图：导出时路径已被替换为 images/xxx
+      const videoPoster = imagePaths[`${component.id}_poster`] || props.poster || ''
       const videoAutoplay = props.autoplay === true
       const videoLoop = props.loop === true
       const videoMuted = props.muted !== false
@@ -1878,6 +1910,20 @@ function collectLocalImagesFromPages(pages) {
             imagePaths[`${comp.id}_slide_${slideIndex}`] = imageFileName
           })
       }
+      // 视频组件封面图（本地图片）
+      if (comp.type === 'video' && comp.props?.posterLocalImage && comp.props?.poster) {
+        const imageData = extractBase64Image(comp.props.poster)
+        if (imageData) {
+          const imageFileName = buildImageFileName(
+            comp.props.posterFileName,
+            `poster_${pageIndex}_${index}`,
+            imageData.extension
+          )
+
+          localImages.push({ filename: imageFileName, data: imageData.data })
+          imagePaths[`${comp.id}_poster`] = imageFileName
+        }
+      }
     })
   })
 
@@ -2046,6 +2092,10 @@ export function hasLocalImages(pageData) {
       return String(comp.props.images)
         .split('\n')
         .some(line => (line.split('|')[0] || '').trim().startsWith('data:'))
+    }
+    // 检查视频组件的本地封面图
+    if (comp.type === 'video' && comp.props?.posterLocalImage) {
+      return true
     }
     return false
   })
@@ -2651,6 +2701,9 @@ function generateVueComponentTemplate(component, allComponents, imagePaths, inde
       const navActiveIndex = props.activeIndex || 0
       const navTextColor = style.color || '#333333'
       const navActiveColor = style.activeColor || '#1890ff'
+      // 菜单对齐方式（此前该属性未生效）
+      const navAlignment = props.alignment || 'left'
+      const navItemsJustify = navAlignment === 'center' ? 'center' : (navAlignment === 'right' ? 'flex-end' : 'flex-start')
       
       const items = navMenuItems.split('\n').filter(item => item.trim())
       const navItemsHTML = items.map((item, index) => {
@@ -2663,7 +2716,7 @@ function generateVueComponentTemplate(component, allComponents, imagePaths, inde
       
       return `${padding}<nav class="${className} nav-menu-widget" :style="{ ${baseStyle} }">
 ${' '.repeat(indent + 2)}<a href="${escapeAttr(navLogoUrl)}" class="nav-logo" :style="{ color: '${navActiveColor}' }">${escapeHTML(navLogo)}</a>
-${' '.repeat(indent + 2)}<div class="nav-items">
+${' '.repeat(indent + 2)}<div class="nav-items" :style="{ justifyContent: '${navItemsJustify}' }">
 ${navItemsHTML}
 ${' '.repeat(indent + 2)}</div>
 ${padding}</nav>`
@@ -3109,6 +3162,7 @@ ${padding}</div>`
       const tableBorderColor = props.borderColor || '#e8e8e8'
       const tableStriped = props.striped !== false
       const tableCellPadding = Number(props.cellPadding) || 8
+      const tableLinkTarget = props.linkTarget || '_self'
       const tableCellStyle = `border: 1px solid ${tableBorderColor}; padding: ${tableCellPadding}px; text-align: left;`
 
       let tableHtml = `${padding}<div class="${className}" :style="{ ${baseStyle} }">
@@ -3133,7 +3187,7 @@ ${' '.repeat(indent + 4)}<tbody>`
         const rowBg = tableStriped && rowIndex % 2 === 1 ? ` background-color: #fafafa;` : ''
         const cells = row
           .map(cell => `
-${' '.repeat(indent + 8)}<td style="${tableCellStyle}${rowBg}">${escapeHTML(cell)}</td>`)
+${' '.repeat(indent + 8)}<td style="${tableCellStyle}${rowBg}">${renderTableCellContent(cell, tableLinkTarget)}</td>`)
           .join('')
         return `
 ${' '.repeat(indent + 6)}<tr>${cells}
@@ -3150,7 +3204,8 @@ ${padding}</div>`
     case 'video': {
       const videoSrc = props.src || ''
       const videoIsIframe = props.videoType === 'iframe'
-      const videoPoster = props.poster || ''
+      // 本地封面图：导出时路径已被替换为 images/xxx
+      const videoPoster = imagePaths[`${component.id}_poster`] || props.poster || ''
       const videoAutoplay = props.autoplay === true
       const videoLoop = props.loop === true
       const videoMuted = props.muted !== false
