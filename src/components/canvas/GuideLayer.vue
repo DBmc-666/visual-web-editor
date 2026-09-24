@@ -40,7 +40,7 @@ function getGuideStyle(guide) {
         return {
           ...baseStyle,
           backgroundColor: guide.color || '#ff4d4f',
-          width: page.width + 'px',
+          width: page.value.width + 'px',
           height: '2px',
           left: '0px',
           top: guide.y1 + 'px'
@@ -50,7 +50,7 @@ function getGuideStyle(guide) {
           ...baseStyle,
           backgroundColor: guide.color || '#ff4d4f',
           width: '2px',
-          height: page.height + 'px',
+          height: page.value.height + 'px',
           left: guide.x1 + 'px',
           top: '0px'
         }
@@ -100,8 +100,8 @@ function getRotatableLineStyle(guide) {
     position: 'absolute',
     left: '0px',
     top: '0px',
-    width: page.width + 'px',
-    height: page.height + 'px',
+    width: page.value.width + 'px',
+    height: page.value.height + 'px',
     pointerEvents: guide.locked ? 'none' : 'auto',
     cursor: guide.locked ? 'default' : (isDragging.value ? 'grabbing' : 'grab'),
     opacity: isSelected(guide) ? 1 : 0.8

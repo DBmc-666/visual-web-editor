@@ -80,7 +80,7 @@ export const PROP_FIELDS = {
     content: { type: 'string', desc: '文本内容（支持\n换行）' },
     textAlign: { type: 'string', desc: '对齐', enum: ['left', 'center', 'right', 'justify'] },
     hasLink: { type: 'boolean', desc: '是否带超链接' },
-    href: { type: 'string', desc: '链接地址' },
+    href: { type: 'string', desc: '链接地址（跳转到本画布的其他页面时使用 #page:页面ID，导出整站时自动转为文件名）' },
     target: { type: 'string', desc: '打开方式', enum: ['_self', '_blank'] }
   },
   image: {
@@ -88,14 +88,14 @@ export const PROP_FIELDS = {
     alt: { type: 'string', desc: '图片替代文本' },
     objectFit: { type: 'string', desc: '缩放方式', enum: ['cover', 'contain', 'fill', 'none', 'scale-down'] },
     hasLink: { type: 'boolean', desc: '是否带超链接' },
-    href: { type: 'string', desc: '链接地址' },
+    href: { type: 'string', desc: '链接地址（跳转到本画布的其他页面时使用 #page:页面ID，导出整站时自动转为文件名）' },
     target: { type: 'string', desc: '打开方式', enum: ['_self', '_blank'] }
   },
   button: {
     content: { type: 'string', desc: '按钮文字' },
     textAlign: { type: 'string', desc: '文字对齐', enum: ['left', 'center', 'right'] },
     actionType: { type: 'string', desc: '点击行为', enum: ['link', 'alert', 'api'] },
-    href: { type: 'string', desc: '跳转链接（actionType=link）' },
+    href: { type: 'string', desc: '跳转链接（actionType=link）；跳转到本画布其他页面时使用 #page:页面ID' },
     target: { type: 'string', desc: '打开方式', enum: ['_self', '_blank'] },
     alertMessage: { type: 'string', desc: '弹窗提示内容（actionType=alert）' },
     apiUrl: { type: 'string', desc: 'API 地址（actionType=api）' },
@@ -108,7 +108,7 @@ export const PROP_FIELDS = {
   },
   link: {
     content: { type: 'string', desc: '链接文字' },
-    href: { type: 'string', desc: '链接地址' },
+    href: { type: 'string', desc: '链接地址（跳转到本画布的其他页面时使用 #page:页面ID，导出整站时自动转为文件名）' },
     textAlign: { type: 'string', desc: '对齐', enum: ['left', 'center', 'right'] }
   },
   datetime: {

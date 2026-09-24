@@ -22,6 +22,11 @@ const SESSION_ID = (() => {
   return `vwe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 })()
 
+// 默认超时时间（毫秒）
+// 实测（OpenCode Go + deepseek-v4.1-flash）：极短请求 ~2s，完整页面 JSON ~40s，
+// 成品网页（长 HTML）~60s；加上 JSON 模式失败后的回退重试，故放宽到 3 分钟
+const DEFAULT_TIMEOUT = 180000
+
 /**
  * 错误分类
  */
@@ -37,8 +42,36 @@ export class AiRequestError extends Error {
   }
 }
 
-// 默认超时时间（毫秒）
-const DEFAULT_TIMEOUT = 120000
+/**
+ * 创建一次请求尝试（独立的 AbortController 与计时器）
+ * 每次尝试单独计时：JSON 模式失败后去掉 response_format 重试时，重试应拥有完整的超时预算，
+ * 而不是与首次尝试共用同一份预算（否则首次尝试偏慢就会把重试的预算耗光）
+ * @param {AbortSignal} [externalSignal]
+ * @param {number} timeout - 本次尝试的超时毫秒数
+ */
+function createAttempt(externalSignal, timeout) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+
+  let unlink = () => {}
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort()
+    } else {
+      const onAbort = () => controller.abort()
+      externalSignal.addEventListener('abort', onAbort)
+      unlink = () => externalSignal.removeEventListener('abort', onAbort)
+    }
+  }
+
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      clearTimeout(timer)
+      unlink()
+    }
+  }
+}
 
 /**
  * 发起一次对话补全请求
@@ -69,17 +102,7 @@ export async function chatCompletion({
     throw new AiRequestError('config', '消息内容为空')
   }
 
-  // 组合外部信号与超时
-  const controller = new AbortController()
-  const linkAbort = (() => {
-    if (!signal) return () => {}
-    const onAbort = () => controller.abort()
-    if (signal.aborted) controller.abort()
-    else signal.addEventListener('abort', onAbort)
-    return () => signal.removeEventListener('abort', onAbort)
-  })()
-  const timer = setTimeout(() => controller.abort(), timeout)
-
+  // 组合外部信号与超时（每次尝试独立计时，见 createAttempt）
   const buildBody = (json) => ({
     model,
     messages,
@@ -98,45 +121,50 @@ export async function chatCompletion({
   const requestBaseUrl = resolveBaseUrl(baseUrl)
 
   const request = async (body) => {
-    const resp = await fetch(`${String(requestBaseUrl).replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: controller.signal
-    })
+    const attempt = createAttempt(signal, timeout)
+    try {
+      const resp = await fetch(`${String(requestBaseUrl).replace(/\/+$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: attempt.signal
+      })
 
-    if (!resp.ok) {
-      let detail = ''
-      try {
-        const data = await resp.json()
-        detail = data?.error?.message || data?.message || JSON.stringify(data)
-      } catch (e) {
-        detail = await resp.text().catch(() => '')
+      if (!resp.ok) {
+        let detail = ''
+        try {
+          const data = await resp.json()
+          detail = data?.error?.message || data?.message || JSON.stringify(data)
+        } catch (e) {
+          detail = await resp.text().catch(() => '')
+        }
+
+        // 错误分类
+        if (resp.status === 401 || resp.status === 403) {
+          throw new AiRequestError('auth', `API Key 无效或无权限（HTTP ${resp.status}）：${detail}`)
+        }
+        if (resp.status === 429 || resp.status === 402) {
+          throw new AiRequestError('rate', `请求超限或余额不足（HTTP ${resp.status}）：${detail}`)
+        }
+        if (resp.status >= 500) {
+          throw new AiRequestError('server', `服务端错误（HTTP ${resp.status}）：${detail}`)
+        }
+        throw new AiRequestError('server', `请求失败（HTTP ${resp.status}）：${detail || resp.statusText}`)
       }
 
-      // 错误分类
-      if (resp.status === 401 || resp.status === 403) {
-        throw new AiRequestError('auth', `API Key 无效或无权限（HTTP ${resp.status}）：${detail}`)
+      const data = await resp.json()
+
+      // 提取回复文本（兼容多种字段结构）
+      const content = data?.choices?.[0]?.message?.content
+        ?? data?.choices?.[0]?.text
+        ?? data?.output?.text
+      if (typeof content !== 'string' || content.length === 0) {
+        throw new AiRequestError('parse', '响应中没有可用的文本内容')
       }
-      if (resp.status === 429 || resp.status === 402) {
-        throw new AiRequestError('rate', `请求超限或余额不足（HTTP ${resp.status}）：${detail}`)
-      }
-      if (resp.status >= 500) {
-        throw new AiRequestError('server', `服务端错误（HTTP ${resp.status}）：${detail}`)
-      }
-      throw new AiRequestError('server', `请求失败（HTTP ${resp.status}）：${detail || resp.statusText}`)
+      return content
+    } finally {
+      attempt.dispose()
     }
-
-    const data = await resp.json()
-
-    // 提取回复文本（兼容多种字段结构）
-    const content = data?.choices?.[0]?.message?.content
-      ?? data?.choices?.[0]?.text
-      ?? data?.output?.text
-    if (typeof content !== 'string' || content.length === 0) {
-      throw new AiRequestError('parse', '响应中没有可用的文本内容')
-    }
-    return content
   }
 
   try {
@@ -155,15 +183,12 @@ export async function chatCompletion({
   } catch (error) {
     if (error instanceof AiRequestError) throw error
     if (error?.name === 'AbortError') {
-      throw new AiRequestError('abort', `请求超时（${Math.round(timeout / 1000)} 秒）或已取消`)
+      throw new AiRequestError('abort', `请求超时（${Math.round(timeout / 1000)} 秒）或已取消。模型越强、页面越复杂耗时越长，可稍后重试或换用更快的模型`)
     }
     const hint = isLocalDevHost()
       ? '请检查网络连接；若为浏览器跨域（CORS）拦截，确认已通过 npm run dev 启动（本地代理会转发请求）'
       : '请检查网络连接；非本地运行环境需自行配置后端代理，第三方接口通常不允许浏览器直连'
     throw new AiRequestError('network', `网络请求失败：${error?.message || '未知错误'}（${hint}）`)
-  } finally {
-    clearTimeout(timer)
-    linkAbort()
   }
 }
 

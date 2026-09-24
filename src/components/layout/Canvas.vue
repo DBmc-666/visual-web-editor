@@ -23,31 +23,33 @@ const canvasRef = ref(null)
 
 // 计算画布样式
 const canvasStyle = computed(() => {
+  const p = page.value
+  if (!p) return {}
   const baseStyle = {
-    width: `${page.width}px`,
-    height: `${page.height}px`
+    width: `${p.width}px`,
+    height: `${p.height}px`
   }
 
-  switch (page.backgroundType) {
+  switch (p.backgroundType) {
     case BACKGROUND_TYPES.GRADIENT_LINEAR:
-      baseStyle.backgroundImage = `linear-gradient(${page.backgroundGradientAngle}deg, ${page.backgroundGradientStart}, ${page.backgroundGradientEnd})`
+      baseStyle.backgroundImage = `linear-gradient(${p.backgroundGradientAngle}deg, ${p.backgroundGradientStart}, ${p.backgroundGradientEnd})`
       break
     case BACKGROUND_TYPES.GRADIENT_RADIAL:
-      baseStyle.backgroundImage = `radial-gradient(circle, ${page.backgroundGradientStart}, ${page.backgroundGradientEnd})`
+      baseStyle.backgroundImage = `radial-gradient(circle, ${p.backgroundGradientStart}, ${p.backgroundGradientEnd})`
       break
     case BACKGROUND_TYPES.IMAGE:
-      if (page.backgroundImage) {
-        baseStyle.backgroundImage = `url(${page.backgroundImage})`
-        baseStyle.backgroundSize = page.backgroundImageSize
-        baseStyle.backgroundPosition = page.backgroundImagePosition
-        baseStyle.backgroundRepeat = page.backgroundImageRepeat
+      if (p.backgroundImage) {
+        baseStyle.backgroundImage = `url(${p.backgroundImage})`
+        baseStyle.backgroundSize = p.backgroundImageSize
+        baseStyle.backgroundPosition = p.backgroundImagePosition
+        baseStyle.backgroundRepeat = p.backgroundImageRepeat
       } else {
-        baseStyle.backgroundColor = page.backgroundColor
+        baseStyle.backgroundColor = p.backgroundColor
       }
       break
     case BACKGROUND_TYPES.SOLID:
     default:
-      baseStyle.backgroundColor = page.backgroundColor
+      baseStyle.backgroundColor = p.backgroundColor
       break
   }
 
@@ -61,7 +63,7 @@ const canvasContainerStyle = computed(() => ({
 
 // 按层级排序组件
 const sortedComponents = computed(() => {
-  return [...page.components].sort((a, b) => (a.zIndex || 3) - (b.zIndex || 3))
+  return [...(page.value?.components || [])].sort((a, b) => (a.zIndex || 3) - (b.zIndex || 3))
 })
 
 // 处理拖拽悬停

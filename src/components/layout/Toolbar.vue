@@ -2,9 +2,9 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useEditor } from '../../stores/editor'
 import { useAi } from '../../stores/ai'
-import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages, exportVue } from '../../utils/htmlGenerator'
+import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages, exportVue, exportSiteWithImages, rewritePageLinks } from '../../utils/htmlGenerator'
 
-const { page, previewMode, togglePreviewMode, setZoom, zoom, deselectComponent, exportPageJSON, exportLayoutJSON, importPageJSON, importLayoutJSON, undo, redo, canUndo, canRedo, guidesVisible, guidesList, snapEnabled, toggleGuides, toggleSnap, addHorizontalGuide, addVerticalGuide, addCircleGuide, addCenterGuides, addRotatableLineGuide, clearGuides } = useEditor()
+const { page, previewMode, togglePreviewMode, setZoom, zoom, deselectComponent, exportPageJSON, exportLayoutJSON, importPageJSON, importLayoutJSON, undo, redo, canUndo, canRedo, guidesVisible, guidesList, snapEnabled, toggleGuides, toggleSnap, addHorizontalGuide, addVerticalGuide, addCircleGuide, addCenterGuides, addRotatableLineGuide, clearGuides, activeCanvas, pages } = useEditor()
 
 // AI 辅助建站
 const ai = useAi()
@@ -62,8 +62,8 @@ function fitToScreen() {
   const availableHeight = window.innerHeight - toolbarHeight - statusbarHeight - 40
   
   // 计算合适的缩放比例
-  const scaleX = availableWidth / page.width
-  const scaleY = availableHeight / page.height
+  const scaleX = availableWidth / page.value.width
+  const scaleY = availableHeight / page.value.height
   
   // 取较小的缩放比例，确保完全显示
   const fitZoom = Math.min(scaleX, scaleY, 1)
@@ -103,28 +103,28 @@ function addGuideAtCenter() {
 
 // 添加参考圆形
 function addGuideCircle() {
-  const centerX = page.width / 2
-  const centerY = page.height / 2
+  const centerX = page.value.width / 2
+  const centerY = page.value.height / 2
   addCircleGuide(centerX, centerY, 100)
   showGuidesMenu.value = false
 }
 
 // 添加水平参考线
 function addGuideHorizontal() {
-  addHorizontalGuide(page.height / 2)
+  addHorizontalGuide(page.value.height / 2)
   showGuidesMenu.value = false
 }
 
 // 添加垂直参考线
 function addGuideVertical() {
-  addVerticalGuide(page.width / 2)
+  addVerticalGuide(page.value.width / 2)
   showGuidesMenu.value = false
 }
 
 // 添加可旋转直线参考线
 function addGuideRotatableLine() {
-  const centerX = page.width / 2
-  const centerY = page.height / 2
+  const centerX = page.value.width / 2
+  const centerY = page.value.height / 2
   addRotatableLineGuide(centerX, centerY, 2000, 0)
   showGuidesMenu.value = false
 }
@@ -177,13 +177,15 @@ watch(zoom, (newVal) => {
   zoomSlider.value = newVal
 })
 
-// 导出HTML
+// 导出HTML（当前页面）
 async function handleExport() {
   try {
-    if (hasLocalImages(page)) {
-      await exportPageWithImages(page)
+    const currentPage = page.value
+    if (hasLocalImages(currentPage)) {
+      await exportPageWithImages(currentPage)
     } else {
-      const html = generatePageHTML(page)
+      // 单页导出时页面间跳转没有目标文件，统一降级为 #
+      const html = rewritePageLinks(generatePageHTML(currentPage), {})
       downloadHTML(html, 'page.html')
     }
   } catch (error) {
@@ -192,10 +194,26 @@ async function handleExport() {
   }
 }
 
+// 导出整站（当前画布的所有页面 → ZIP，页面间跳转自动串联）
+async function handleExportSite() {
+  try {
+    const canvas = activeCanvas.value
+    if (!canvas) return
+    if ((canvas.pages || []).length <= 1) {
+      alert('当前画布只有 1 个页面，无需导出整站；可直接使用「导出 HTML」')
+      return
+    }
+    await exportSiteWithImages(canvas, canvas.name || 'site')
+  } catch (error) {
+    console.error('整站导出失败:', error)
+    alert('整站导出失败，请重试')
+  }
+}
+
 // 导出Vue组件（自动检测是否包含本地图片）
 async function handleExportVue() {
   try {
-    await exportVue(page)
+    await exportVue(page.value)
   } catch (error) {
     console.error('导出Vue失败:', error)
     alert('导出Vue失败，请重试')
@@ -434,6 +452,16 @@ function closePageSettings() {
       <!-- 导出按钮 -->
       <button class="btn btn-primary" @click="handleExport" v-show="!previewMode">
         导出 HTML
+      </button>
+
+      <!-- 导出整站（多页面，页面间跳转自动串联） -->
+      <button
+        class="btn btn-secondary"
+        @click="handleExportSite"
+        v-show="!previewMode"
+        :title="pages.length > 1 ? `导出当前画布的 ${pages.length} 个页面为多页站点（ZIP）` : '当前画布只有 1 个页面'"
+      >
+        导出整站<span v-if="pages.length > 1" class="btn-badge">{{ pages.length }}</span>
       </button>
 
       <!-- 导出Vue按钮 -->
@@ -763,5 +791,21 @@ function closePageSettings() {
   color: #fff;
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+/* 按钮上的数量角标（如"导出整站 3"） */
+.btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 8px;
+  background-color: var(--color-primary);
+  color: #ffffff;
 }
 </style>

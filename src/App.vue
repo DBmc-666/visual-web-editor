@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import Toolbar from './components/layout/Toolbar.vue'
+import PageBar from './components/layout/PageBar.vue'
 import Sidebar from './components/layout/Sidebar.vue'
 import Canvas from './components/layout/Canvas.vue'
 import PropertyPanel from './components/panels/PropertyPanel.vue'
@@ -24,6 +25,9 @@ const showPropertyPanel = computed(() => !previewMode.value)
   <div class="app-container">
     <!-- 顶部工具栏 -->
     <Toolbar />
+
+    <!-- 画布 / 页面切换栏（预览模式下隐藏） -->
+    <PageBar v-show="!previewMode" />
 
     <!-- 主内容区 -->
     <div class="main-content">

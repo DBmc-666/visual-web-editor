@@ -1753,6 +1753,186 @@ export function downloadHTML(html, filename = 'page.html') {
 }
 
 /**
+ * 把原始文件名整理成 ZIP 内可用的安全文件名
+ * 会去掉已有扩展名（扩展名以图片数据的真实类型为准，避免出现 photo.png.png）
+ * @param {string} originalName - 原始文件名
+ * @param {string} fallbackName - 无原始文件名时的兜底名
+ * @param {string} extension - 图片真实扩展名
+ */
+function buildImageFileName(originalName, fallbackName, extension) {
+  const raw = String(originalName || fallbackName || 'image')
+  const withoutExt = raw.replace(/\.[^./\\]+$/, '')
+  const safeName = (withoutExt || fallbackName || 'image').replace(/[^a-zA-Z0-9_\-.]/g, '_')
+  return `images/${safeName}.${extension}`
+}
+
+/**
+ * 收集多个页面中的本地图片
+ * 图片以 data URL 形式存放在组件属性里，这里解码后写入 ZIP，并返回路径映射，
+ * 供 generatePageHTML 把 data URL 替换为 images/xxx.png
+ * @param {Array} pages - 页面数组
+ * @returns {{imagePaths: Object, localImages: Array}}
+ */
+function collectLocalImagesFromPages(pages) {
+  const imagePaths = {}
+  const localImages = []
+
+  ;(pages || []).forEach((page, pageIndex) => {
+    ;(page.components || []).forEach((comp, index) => {
+      // 图片组件
+      if (comp.type === 'image' && comp.props?.localImage && comp.props?.src) {
+        const imageData = extractBase64Image(comp.props.src)
+        if (imageData) {
+          const imageFileName = buildImageFileName(
+            comp.props.imageFileName,
+            `image_${pageIndex}_${index}`,
+            imageData.extension
+          )
+
+          localImages.push({ filename: imageFileName, data: imageData.data })
+          imagePaths[comp.id] = imageFileName
+        }
+      }
+
+      // 标签页组件
+      if (comp.type === 'tabs' && comp.props?.tabImages) {
+        const tabImages = comp.props.tabImages
+        Object.keys(tabImages).forEach((tabKey, tabIndex) => {
+          const imageConfig = tabImages[tabKey]
+          if (imageConfig.isLocalImage && imageConfig.url) {
+            const imageData = extractBase64Image(imageConfig.url)
+            if (imageData) {
+              const imageFileName = buildImageFileName(
+                imageConfig.fileName,
+                `tab_image_${pageIndex}_${index}_${tabIndex}`,
+                imageData.extension
+              )
+
+              localImages.push({ filename: imageFileName, data: imageData.data })
+              imagePaths[`${comp.id}_${tabKey}`] = imageFileName
+            }
+          }
+        })
+      }
+
+      // 轮播图组件（每行：地址|说明|链接|文件名，地址为 data: 即本地图片）
+      if (comp.type === 'carousel' && comp.props?.images) {
+        String(comp.props.images)
+          .split('\n')
+          .map(line => line.trim())
+          .filter(Boolean)
+          .forEach((line, slideIndex) => {
+            const parts = line.split('|')
+            const slideUrl = (parts[0] || '').trim()
+            if (!slideUrl.startsWith('data:')) return
+
+            const imageData = extractBase64Image(slideUrl)
+            if (!imageData) return
+
+            const imageFileName = buildImageFileName(
+              (parts[3] || '').trim(),
+              `slide_${pageIndex}_${index}_${slideIndex}`,
+              imageData.extension
+            )
+
+            localImages.push({ filename: imageFileName, data: imageData.data })
+            imagePaths[`${comp.id}_slide_${slideIndex}`] = imageFileName
+          })
+      }
+    })
+  })
+
+  return { imagePaths, localImages }
+}
+
+/**
+ * 页面名称 → 安全的文件名（仅保留 ASCII 字母数字，无法生成时回退为 page-N）
+ */
+function slugifyPageName(name, fallbackIndex) {
+  const slug = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || `page-${fallbackIndex}`
+}
+
+/**
+ * 为画布内的页面分配导出文件名
+ * 第一个页面固定为 index.html，其余按页面名生成 slug，重名自动加序号
+ * @param {Array} pages - 页面数组
+ * @returns {Object} { [pageId]: 'about.html' }
+ */
+export function buildPageFileMap(pages) {
+  const map = {}
+  const used = new Set()
+
+  ;(pages || []).forEach((page, index) => {
+    const base = index === 0 ? 'index.html' : `${slugifyPageName(page.name, index + 1)}.html`
+    let candidate = base
+    let n = 2
+    while (used.has(candidate)) {
+      candidate = base.replace(/\.html$/, `-${n}.html`)
+      n += 1
+    }
+    used.add(candidate)
+    map[page.id] = candidate
+  })
+
+  return map
+}
+
+/**
+ * 重写页面间跳转链接
+ * 编辑器中页面链接统一写成 `#page:<pageId>`，导出时替换为目标页面文件名；
+ * 找不到目标（例如单页导出）时降级为 `#`
+ * @param {string} html - 已生成的 HTML
+ * @param {Object} fileMap - { [pageId]: 'about.html' }
+ * @returns {string}
+ */
+export function rewritePageLinks(html, fileMap = {}) {
+  return String(html).replace(/#page:([A-Za-z0-9_-]+)/g, (match, pageId) => {
+    return fileMap[pageId] || '#'
+  })
+}
+
+/**
+ * 导出整个画布为多页站点（ZIP：每个页面一个 HTML 文件 + images 目录）
+ * 页面之间的 `#page:<id>` 链接会自动重写为对应文件名，可直接部署
+ * @param {Object} canvas - 画布数据 { name, pages }
+ * @param {string} filename - 输出文件名（不含扩展名）
+ * @returns {Promise<{pageCount: number, files: string[]}>}
+ */
+export async function exportSiteWithImages(canvas, filename = 'site') {
+  const pages = (canvas?.pages || []).filter(Boolean)
+  if (pages.length === 0) {
+    throw new Error('画布中没有可导出的页面')
+  }
+
+  const zip = new JSZip()
+  const { imagePaths, localImages } = collectLocalImagesFromPages(pages)
+
+  if (localImages.length > 0) {
+    const imagesFolder = zip.folder('images')
+    localImages.forEach(img => {
+      imagesFolder.file(img.filename.replace('images/', ''), img.data)
+    })
+  }
+
+  const fileMap = buildPageFileMap(pages)
+
+  pages.forEach(page => {
+    const html = rewritePageLinks(generatePageHTML(page, imagePaths), fileMap)
+    zip.file(fileMap[page.id], html)
+  })
+
+  const content = await zip.generateAsync({ type: 'blob' })
+  saveAs(content, `${filename}.zip`)
+
+  return { pageCount: pages.length, files: Object.values(fileMap) }
+}
+
+/**
  * 导出页面（HTML + 本地图片打包为 ZIP）
  * @param {Object} pageData - 页面数据
  * @param {string} filename - 文件名（不含扩展名）
@@ -1760,79 +1940,8 @@ export function downloadHTML(html, filename = 'page.html') {
 export async function exportPageWithImages(pageData, filename = 'page') {
   const zip = new JSZip()
 
-  // 收集本地图片
-  const localImages = []
-  const imagePaths = {}
-
-  pageData.components.forEach((comp, index) => {
-    // 处理图片组件的本地图片
-    if (comp.type === 'image' && comp.props?.localImage && comp.props?.src) {
-      const imageData = extractBase64Image(comp.props.src)
-      if (imageData) {
-        const originalName = comp.props.imageFileName || `image_${index}`
-        const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
-        const imageFileName = `images/${safeName}.${imageData.extension}`
-
-        localImages.push({
-          filename: imageFileName,
-          data: imageData.data
-        })
-
-        imagePaths[comp.id] = imageFileName
-      }
-    }
-
-    // 处理标签页组件的本地图片
-    if (comp.type === 'tabs' && comp.props?.tabImages) {
-      const tabImages = comp.props.tabImages
-      Object.keys(tabImages).forEach((tabKey, tabIndex) => {
-        const imageConfig = tabImages[tabKey]
-        if (imageConfig.isLocalImage && imageConfig.url) {
-          const imageData = extractBase64Image(imageConfig.url)
-          if (imageData) {
-            const originalName = imageConfig.fileName || `tab_image_${index}_${tabIndex}`
-            const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
-            const imageFileName = `images/${safeName}.${imageData.extension}`
-
-            localImages.push({
-              filename: imageFileName,
-              data: imageData.data
-            })
-
-            // 使用组件ID + tabKey作为唯一标识
-            imagePaths[`${comp.id}_${tabKey}`] = imageFileName
-          }
-        }
-      })
-    }
-
-    // 处理轮播图组件的本地图片（每行：地址|说明|链接|文件名，地址为 data: 即本地图片）
-    if (comp.type === 'carousel' && comp.props?.images) {
-      String(comp.props.images)
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .forEach((line, slideIndex) => {
-          const parts = line.split('|')
-          const slideUrl = (parts[0] || '').trim()
-          if (!slideUrl.startsWith('data:')) return
-
-          const imageData = extractBase64Image(slideUrl)
-          if (!imageData) return
-
-          const originalName = (parts[3] || '').trim() || `slide_${index}_${slideIndex}`
-          const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
-          const imageFileName = `images/${safeName}.${imageData.extension}`
-
-          localImages.push({
-            filename: imageFileName,
-            data: imageData.data
-          })
-
-          imagePaths[`${comp.id}_slide_${slideIndex}`] = imageFileName
-        })
-    }
-  })
+  // 收集本地图片（与多页整站导出复用同一套收集逻辑）
+  const { imagePaths, localImages } = collectLocalImagesFromPages([pageData])
 
   // 添加图片到 ZIP
   if (localImages.length > 0) {
@@ -1843,7 +1952,8 @@ export async function exportPageWithImages(pageData, filename = 'page') {
   }
 
   // 生成 HTML（使用新图片路径）
-  const html = generatePageHTML(pageData, imagePaths)
+  // 单页导出时页面间跳转没有目标文件，统一降级为 # 锚点
+  const html = rewritePageLinks(generatePageHTML(pageData, imagePaths), {})
   zip.file(`${filename}.html`, html)
 
   // 生成并下载 ZIP

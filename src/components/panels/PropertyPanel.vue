@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useEditor, BACKGROUND_TYPES } from '../../stores/editor'
+import PageLinkSelect from './PageLinkSelect.vue'
 import {
   getComponentBackendConfig,
   generateSingleComponentEntity,
@@ -18,12 +19,15 @@ const {
   selectedId,
   selectedIds,
   page,
+  pages,
+  activePageId,
   updateComponent,
   updateComponentStyle,
   updateComponentProps,
   updateComponentZIndex,
   removeComponent,
   updatePageSize,
+  updatePage,
   // 多选操作：对齐 / 分布 / 复制粘贴
   alignComponents,
   distributeComponents,
@@ -158,64 +162,64 @@ const presetSizes = [
 
 // 更新页面名称
 function updatePageName(name) {
-  page.name = name
+  updatePage({ name })
 }
 
 // 更新页面宽度
 function updatePageWidth(width) {
   const num = parseInt(width) || 1200
-  updatePageSize(num, page.height)
+  updatePageSize(num, page.value.height)
 }
 
 // 更新页面高度
 function updatePageHeight(height) {
   const num = parseInt(height) || 800
-  updatePageSize(page.width, num)
+  updatePageSize(page.value.width, num)
 }
 
 // 更新页面背景颜色
 function updatePageBgColor(color) {
-  page.backgroundColor = color
+  updatePage({ backgroundColor: color })
 }
 
 // 更新页面背景类型
 function updatePageBackgroundType(type) {
-  page.backgroundType = type
+  updatePage({ backgroundType: type })
 }
 
 // 更新页面渐变起始颜色
 function updatePageBgGradientStart(color) {
-  page.backgroundGradientStart = color
+  updatePage({ backgroundGradientStart: color })
 }
 
 // 更新页面渐变结束颜色
 function updatePageBgGradientEnd(color) {
-  page.backgroundGradientEnd = color
+  updatePage({ backgroundGradientEnd: color })
 }
 
 // 更新页面渐变角度
 function updatePageBgGradientAngle(angle) {
-  page.backgroundGradientAngle = parseInt(angle) || 180
+  updatePage({ backgroundGradientAngle: parseInt(angle) || 180 })
 }
 
 // 更新页面背景图片URL
 function updatePageBgImage(url) {
-  page.backgroundImage = url
+  updatePage({ backgroundImage: url })
 }
 
 // 更新页面背景图片尺寸
 function updatePageBgImageSize(size) {
-  page.backgroundImageSize = size
+  updatePage({ backgroundImageSize: size })
 }
 
 // 更新页面背景图片位置
 function updatePageBgImagePosition(position) {
-  page.backgroundImagePosition = position
+  updatePage({ backgroundImagePosition: position })
 }
 
 // 更新页面背景图片重复方式
 function updatePageBgImageRepeat(repeat) {
-  page.backgroundImageRepeat = repeat
+  updatePage({ backgroundImageRepeat: repeat })
 }
 
 // 处理页面背景图片选择
@@ -230,7 +234,7 @@ function handlePageBackgroundImageSelect(event) {
 
   const reader = new FileReader()
   reader.onload = (e) => {
-    page.backgroundImage = e.target.result
+    updatePage({ backgroundImage: e.target.result })
   }
   reader.readAsDataURL(file)
   event.target.value = ''
@@ -1324,6 +1328,33 @@ function removeTableRow(index) {
   updateComponentProps(selectedId.value, serializeTable(getTableHeaders(), rows))
 }
 
+// ==================== 页面跳转 ====================
+
+// 当前组件是否支持"跳转到页面"（含 href 的组件）
+const canLinkToPage = computed(() =>
+  ['link', 'button', 'image'].includes(selectedComponent.value?.type)
+)
+
+// 可跳转的页面（当前画布内，排除当前页）
+const linkablePages = computed(() => (pages.value || []).filter(p => p.id !== activePageId.value))
+
+// 当前组件是否已指向某个页面
+const linkedPageId = computed(() => {
+  const href = selectedComponent.value?.props?.href || ''
+  const match = String(href).match(/^#page:(.+)$/)
+  return match ? match[1] : ''
+})
+
+// 设置跳转到指定页面（空值则恢复为普通链接）
+function setPageLink(pageId) {
+  if (!selectedId.value) return
+  if (!pageId) {
+    updateComponentProps(selectedId.value, { href: '#' })
+    return
+  }
+  updateComponentProps(selectedId.value, { href: `#page:${pageId}`, hasLink: true })
+}
+
 // ==================== 后端代码生成 ====================
 
 // 打开后端代码生成对话框
@@ -1856,6 +1887,23 @@ const shadowCSS = computed(() => {
         </div>
       </div>
 
+      <!-- 页面跳转（含链接的组件） -->
+      <div v-if="canLinkToPage && linkablePages.length > 0" class="property-section">
+        <h4 class="section-title">🔗 页面跳转</h4>
+        <div class="property-list">
+          <div class="property-row">
+            <label>跳转到页面</label>
+            <select class="input" :value="linkedPageId" @change="setPageLink($event.target.value)">
+              <option value="">（不跳转，使用下方链接地址）</option>
+              <option v-for="p in linkablePages" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div class="property-hint">
+            选择后写入 <code>#page:页面ID</code>；导出整站时会自动转换为该页面的文件名，实现页面间跳转
+          </div>
+        </div>
+      </div>
+
       <!-- 组件特有属性 -->
       <div v-if="propsFields.length > 0" class="property-section">
         <h4 class="section-title">⚙️ 内容设置</h4>
@@ -1993,6 +2041,7 @@ const shadowCSS = computed(() => {
             <div class="form-item-fields">
               <input type="text" :value="item.text" class="input" placeholder="菜单名称，如：关于我们" @input="(e) => updateNavMenuItem(index, 'text', e.target.value)" />
               <input type="text" :value="item.url" class="input" placeholder="跳转链接，如：#about 或 https://example.com" @input="(e) => updateNavMenuItem(index, 'url', e.target.value)" />
+              <PageLinkSelect :model-value="item.url" @update:model-value="(v) => updateNavMenuItem(index, 'url', v)" />
             </div>
           </div>
           <button class="btn-add-item" @click="addNavMenuItem">+ 添加菜单项</button>
@@ -2011,6 +2060,7 @@ const shadowCSS = computed(() => {
             <div class="form-item-fields">
               <input type="text" :value="item.text" class="input" placeholder="显示文字，如：产品详情" @input="(e) => updateBreadcrumbItem(index, 'text', e.target.value)" />
               <input type="text" :value="item.url" class="input" placeholder="跳转链接，如：#product 或 https://example.com" @input="(e) => updateBreadcrumbItem(index, 'url', e.target.value)" />
+              <PageLinkSelect :model-value="item.url" @update:model-value="(v) => updateBreadcrumbItem(index, 'url', v)" />
             </div>
           </div>
           <button class="btn-add-item" @click="addBreadcrumbItem">+ 添加导航项</button>
@@ -2111,6 +2161,7 @@ const shadowCSS = computed(() => {
                 placeholder="跳转链接（留空则不跳转），如 https://example.com"
                 @input="(e) => updateCarouselSlide(index, 'link', e.target.value)"
               />
+              <PageLinkSelect :model-value="item.link" @update:model-value="(v) => updateCarouselSlide(index, 'link', v)" />
             </div>
           </div>
           <button class="btn-add-item" @click="addCarouselSlide">+ 添加图片</button>
@@ -2141,6 +2192,7 @@ const shadowCSS = computed(() => {
                 placeholder="跳转链接（留空则不跳转），如 #about 或 https://example.com"
                 @input="(e) => updateListItem(index, 'link', e.target.value)"
               />
+              <PageLinkSelect :model-value="item.link" @update:model-value="(v) => updateListItem(index, 'link', v)" />
             </div>
           </div>
           <button class="btn-add-item" @click="addListItem">+ 添加列表项</button>

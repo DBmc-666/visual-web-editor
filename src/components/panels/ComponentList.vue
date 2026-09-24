@@ -585,8 +585,8 @@ function applyPresetPage(page) {
 function applyPresetLayout(layout) {
   console.log('applyPresetLayout called with:', layout.name)
   // 计算布局放置位置（页面中心）
-  const centerX = Math.max(0, (page.width - 800) / 2)
-  const centerY = Math.max(0, (page.height - 400) / 2)
+  const centerX = Math.max(0, (page.value.width - 800) / 2)
+  const centerY = Math.max(0, (page.value.height - 400) / 2)
   
   // 添加组件到现有页面（统一偏移）
   const offsetComponents = layout.components.map(comp => ({

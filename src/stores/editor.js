@@ -576,10 +576,10 @@ export const BACKGROUND_TYPES = {
 }
 
 // 创建页面状态
-function createPageState() {
+function createPageState(name = '未命名页面') {
   return {
     id: generatePageId(),
-    name: '未命名页面',
+    name,
     width: 1200,
     height: 800,
     backgroundColor: '#ffffff',
@@ -593,6 +593,63 @@ function createPageState() {
     backgroundImageRepeat: 'no-repeat',
     components: []
   }
+}
+
+/**
+ * 创建画布状态
+ * 一个画布 = 一个独立的设计空间（可理解为"一个站点"），内部包含多个页面，
+ * 不同画布之间的页面与组件完全独立，互不影响。
+ * @param {string} name - 画布名称
+ * @param {string} firstPageName - 首个页面名称
+ */
+function createCanvasState(name = '未命名画布', firstPageName = '首页') {
+  const page = createPageState(firstPageName)
+  return {
+    id: generateId('canvas'),
+    name,
+    pages: [page]
+  }
+}
+
+/**
+ * 创建项目状态（项目 = 多个相互独立的画布）
+ */
+function createProjectState() {
+  return {
+    id: generatePageId(),
+    name: '未命名项目',
+    canvases: [createCanvasState('画布 1', '首页')]
+  }
+}
+
+/**
+ * 规范化页面数据（用于导入 / 草稿恢复）
+ * 逐字段校验，组件经 normalizeComponentConfig 清洗，未知类型会被过滤
+ * @param {Object} p - 原始页面数据
+ * @returns {Object} 规范化后的页面对象
+ */
+function normalizePageData(p) {
+  const source = p && typeof p === 'object' ? p : {}
+  const page = createPageState(typeof source.name === 'string' ? source.name : '未命名页面')
+
+  if (typeof source.id === 'string' && source.id) page.id = source.id
+  if (typeof source.width === 'number') page.width = source.width
+  if (typeof source.height === 'number') page.height = source.height
+  if (typeof source.backgroundColor === 'string') page.backgroundColor = source.backgroundColor
+  if (typeof source.backgroundType === 'string') page.backgroundType = source.backgroundType
+  if (typeof source.backgroundGradientStart === 'string') page.backgroundGradientStart = source.backgroundGradientStart
+  if (typeof source.backgroundGradientEnd === 'string') page.backgroundGradientEnd = source.backgroundGradientEnd
+  if (typeof source.backgroundGradientAngle === 'number') page.backgroundGradientAngle = source.backgroundGradientAngle
+  if (typeof source.backgroundImage === 'string') page.backgroundImage = source.backgroundImage
+  if (typeof source.backgroundImageSize === 'string') page.backgroundImageSize = source.backgroundImageSize
+  if (typeof source.backgroundImagePosition === 'string') page.backgroundImagePosition = source.backgroundImagePosition
+  if (typeof source.backgroundImageRepeat === 'string') page.backgroundImageRepeat = source.backgroundImageRepeat
+
+  page.components = (Array.isArray(source.components) ? source.components : [])
+    .map(comp => actions.normalizeComponentConfig(comp))
+    .filter(Boolean)
+
+  return page
 }
 
 // 创建组件实例
@@ -620,8 +677,15 @@ export function createComponent(type) {
 
 // 全局状态
 const state = reactive({
-  // 当前页面数据
-  page: createPageState(),
+  // 项目结构：项目 → 多个独立画布 → 每个画布多个页面 → 页面内组件
+  project: createProjectState(),
+
+  // 当前激活的画布 / 页面 ID
+  activeCanvasId: null,
+  activePageId: null,
+
+  // 当前页面数据（直接指向 project 中激活的页面对象，所有既有动作都作用于它）
+  page: null,
 
   // 选中的组件 ID
   selectedId: null,
@@ -688,6 +752,42 @@ const state = reactive({
   // 图层 hover 高亮（图层面板与画布联动）
   hoveredId: null
 })
+
+// ==================== 激活指针初始化与同步 ====================
+
+/**
+ * 取当前激活的画布对象（响应式引用）
+ * @returns {Object|null}
+ */
+function getActiveCanvas() {
+  const canvases = state.project?.canvases || []
+  return canvases.find(c => c.id === state.activeCanvasId) || canvases[0] || null
+}
+
+/**
+ * 把 state.page 指向当前激活的画布 / 页面
+ * 页面对象本身位于 project 响应式树内，因此所有既有动作（增删组件、改样式等）
+ * 继续直接操作 state.page 即可，无需改动
+ */
+function syncActivePage() {
+  const canvas = getActiveCanvas()
+  if (!canvas) {
+    state.page = null
+    return null
+  }
+
+  state.activeCanvasId = canvas.id
+  let page = canvas.pages.find(p => p.id === state.activePageId)
+  if (!page) {
+    page = canvas.pages[0]
+    state.activePageId = page ? page.id : null
+  }
+  state.page = page || null
+  return page
+}
+
+// 初始激活第一个画布的第一个页面
+syncActivePage()
 
 console.log('Initial state:', state)
 
@@ -1277,6 +1377,171 @@ const actions = {
     state.hoveredId = id
   },
 
+  // ==================== 画布 / 页面管理 ====================
+
+  // 取当前激活画布
+  getActiveCanvas() {
+    return getActiveCanvas()
+  },
+
+  // 取当前画布的所有页面
+  getCanvasPages() {
+    const canvas = getActiveCanvas()
+    return canvas ? canvas.pages : []
+  },
+
+  // 取项目内所有页面（跨画布，用于"跳转到页面"选择器）
+  getAllPages() {
+    const out = []
+    ;(state.project.canvases || []).forEach(canvas => {
+      ;(canvas.pages || []).forEach(page => {
+        out.push({ canvasId: canvas.id, canvasName: canvas.name, pageId: page.id, pageName: page.name })
+      })
+    })
+    return out
+  },
+
+  /**
+   * 生成"跳转到页面"的链接值
+   * 导出时会被重写为目标页面的文件名（同画布内），因此可以跨组件通用
+   * @param {string} pageId - 目标页面 id
+   */
+  getPageLink(pageId) {
+    return `#page:${pageId}`
+  },
+
+  // 切换画布
+  switchCanvas(canvasId) {
+    const canvas = state.project.canvases.find(c => c.id === canvasId)
+    if (!canvas) return false
+    state.activeCanvasId = canvas.id
+    state.activePageId = canvas.pages[0] ? canvas.pages[0].id : null
+    actions.deselectComponent()
+    syncActivePage()
+    return true
+  },
+
+  // 新建画布（完全独立的空间，含一个空白首页）
+  addCanvas(name) {
+    const canvas = createCanvasState(name || `画布 ${state.project.canvases.length + 1}`, '首页')
+    state.project.canvases.push(canvas)
+    actions.switchCanvas(canvas.id)
+    return canvas
+  },
+
+  // 重命名画布
+  renameCanvas(canvasId, name) {
+    const canvas = state.project.canvases.find(c => c.id === canvasId)
+    const cleaned = String(name || '').trim()
+    if (!canvas || !cleaned) return false
+    canvas.name = cleaned
+    return true
+  },
+
+  // 删除画布（至少保留一个）
+  removeCanvas(canvasId) {
+    if (state.project.canvases.length <= 1) return false
+    const index = state.project.canvases.findIndex(c => c.id === canvasId)
+    if (index === -1) return false
+
+    state.project.canvases.splice(index, 1)
+
+    if (state.activeCanvasId === canvasId) {
+      const next = state.project.canvases[Math.max(0, index - 1)]
+      state.activeCanvasId = next.id
+      state.activePageId = next.pages[0] ? next.pages[0].id : null
+      actions.deselectComponent()
+      syncActivePage()
+    }
+    return true
+  },
+
+  // 切换页面
+  switchPage(pageId) {
+    const canvas = getActiveCanvas()
+    if (!canvas || !canvas.pages.some(p => p.id === pageId)) return false
+    state.activePageId = pageId
+    actions.deselectComponent()
+    syncActivePage()
+    return true
+  },
+
+  // 新建页面（加入当前画布并切换过去）
+  addPage(name) {
+    const canvas = getActiveCanvas()
+    if (!canvas) return null
+    const page = createPageState(name || `页面 ${canvas.pages.length + 1}`)
+    canvas.pages.push(page)
+    actions.switchPage(page.id)
+    return page
+  },
+
+  // 重命名页面
+  renamePage(pageId, name) {
+    const canvas = getActiveCanvas()
+    const page = canvas && canvas.pages.find(p => p.id === pageId)
+    const cleaned = String(name || '').trim()
+    if (!page || !cleaned) return false
+    page.name = cleaned
+    return true
+  },
+
+  /**
+   * 复制页面（深拷贝页面与组件，重新生成页面与组件 id）
+   * @returns {Object|null} 新页面
+   */
+  duplicatePage(pageId) {
+    const canvas = getActiveCanvas()
+    if (!canvas) return null
+    const index = canvas.pages.findIndex(p => p.id === pageId)
+    if (index === -1) return null
+
+    const copy = JSON.parse(JSON.stringify(canvas.pages[index]))
+    copy.id = generatePageId()
+    copy.name = `${copy.name} 副本`
+    copy.components = (copy.components || []).map(comp => ({
+      ...comp,
+      id: generateId(comp.type)
+    }))
+
+    canvas.pages.splice(index + 1, 0, copy)
+    actions.switchPage(copy.id)
+    return copy
+  },
+
+  // 删除页面（每个画布至少保留一页）
+  removePage(pageId) {
+    const canvas = getActiveCanvas()
+    if (!canvas || canvas.pages.length <= 1) return false
+    const index = canvas.pages.findIndex(p => p.id === pageId)
+    if (index === -1) return false
+
+    canvas.pages.splice(index, 1)
+
+    if (state.activePageId === pageId) {
+      const next = canvas.pages[Math.max(0, index - 1)]
+      state.activePageId = next.id
+      actions.deselectComponent()
+      syncActivePage()
+    }
+    return true
+  },
+
+  // 调整页面顺序（'left' | 'right'）
+  movePage(pageId, direction) {
+    const canvas = getActiveCanvas()
+    if (!canvas) return false
+    const index = canvas.pages.findIndex(p => p.id === pageId)
+    if (index === -1) return false
+
+    const target = direction === 'left' ? index - 1 : index + 1
+    if (target < 0 || target >= canvas.pages.length) return false
+
+    const [page] = canvas.pages.splice(index, 1)
+    canvas.pages.splice(target, 0, page)
+    return true
+  },
+
   // 更新组件属性
   updateComponent(id, updates) {
     const component = state.page.components.find(c => c.id === id)
@@ -1403,16 +1668,18 @@ const actions = {
     Object.assign(state.page, updates)
   },
 
-  // 重置页面
+  // 重置当前页面（清空组件、恢复默认页面设置，保留页面 id 与名称）
   resetPage() {
     saveHistory('resetPage')
-    const newPage = createPageState()
+    const keepId = state.page.id
+    const keepName = state.page.name
+    const newPage = createPageState(keepName)
     Object.assign(state.page, newPage)
+    // 保留页面 id：页面之间的跳转链接依赖它，不能被重置改掉
+    state.page.id = keepId
     state.page.components = []
     state.selectedId = null
     state.selectedIds = []
-    // 重置后清除草稿，避免下次打开又恢复到旧页面
-    clearPageDraft()
   },
 
   // 导出页面为 JSON（包含页面信息和组件）
@@ -1945,13 +2212,15 @@ const actions = {
 
 // ==================== 草稿持久化 ====================
 
-// 保存当前页面为草稿（localStorage）
+// 保存项目草稿（localStorage，含所有画布与页面）
 function savePageDraft() {
   try {
     const payload = {
-      version: '1.0',
+      version: '2.0',
       savedAt: Date.now(),
-      page: JSON.parse(JSON.stringify(state.page))
+      project: JSON.parse(JSON.stringify(state.project)),
+      activeCanvasId: state.activeCanvasId,
+      activePageId: state.activePageId
     }
     localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload))
     state.draftSavedAt = payload.savedAt
@@ -1964,44 +2233,75 @@ function savePageDraft() {
   }
 }
 
-// 从本地存储恢复草稿（应用启动时调用）
+// 从本地存储恢复草稿（应用启动时调用；兼容旧版单页草稿）
 function loadPageDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY)
     if (!raw) return { found: false }
 
     const payload = JSON.parse(raw)
-    if (!payload || !payload.page || !Array.isArray(payload.page.components)) {
+    if (!payload) return { found: false }
+
+    // ---------- 旧版单页草稿（version 1.0）→ 迁移为「一个画布 + 一个页面」 ----------
+    if (payload.page && !payload.project) {
+      const page = normalizePageData(payload.page)
+      const canvas = { id: generateId('canvas'), name: '画布 1', pages: [page] }
+
+      state.project = { id: generatePageId(), name: '未命名项目', canvases: [canvas] }
+      state.activeCanvasId = canvas.id
+      state.activePageId = page.id
+      syncActivePage()
+
+      state.selectedId = null
+      state.selectedIds = []
+      state.draftRestored = true
+      state.draftSavedAt = payload.savedAt
+      return { found: true, savedAt: payload.savedAt, componentCount: page.components.length, migrated: true }
+    }
+
+    if (!payload.project || !Array.isArray(payload.project.canvases) || payload.project.canvases.length === 0) {
       return { found: false }
     }
 
-    const p = payload.page
-    // 显式赋值已知字段，避免混入脏数据
-    if (typeof p.id === 'string') state.page.id = p.id
-    if (typeof p.name === 'string') state.page.name = p.name
-    if (typeof p.width === 'number') state.page.width = p.width
-    if (typeof p.height === 'number') state.page.height = p.height
-    if (typeof p.backgroundColor === 'string') state.page.backgroundColor = p.backgroundColor
-    if (typeof p.backgroundType === 'string') state.page.backgroundType = p.backgroundType
-    if (typeof p.backgroundGradientStart === 'string') state.page.backgroundGradientStart = p.backgroundGradientStart
-    if (typeof p.backgroundGradientEnd === 'string') state.page.backgroundGradientEnd = p.backgroundGradientEnd
-    if (typeof p.backgroundGradientAngle === 'number') state.page.backgroundGradientAngle = p.backgroundGradientAngle
-    if (typeof p.backgroundImage === 'string') state.page.backgroundImage = p.backgroundImage
-    if (typeof p.backgroundImageSize === 'string') state.page.backgroundImageSize = p.backgroundImageSize
-    if (typeof p.backgroundImagePosition === 'string') state.page.backgroundImagePosition = p.backgroundImagePosition
-    if (typeof p.backgroundImageRepeat === 'string') state.page.backgroundImageRepeat = p.backgroundImageRepeat
+    // ---------- 规范化项目结构 ----------
+    const project = {
+      id: typeof payload.project.id === 'string' ? payload.project.id : generatePageId(),
+      name: typeof payload.project.name === 'string' ? payload.project.name : '未命名项目',
+      canvases: payload.project.canvases.map(canvas => {
+        const pages = Array.isArray(canvas.pages) && canvas.pages.length > 0 ? canvas.pages : [{}]
+        return {
+          id: typeof canvas.id === 'string' ? canvas.id : generateId('canvas'),
+          name: typeof canvas.name === 'string' ? canvas.name : '未命名画布',
+          pages: pages.map(normalizePageData)
+        }
+      })
+    }
 
-    // 规范化组件，过滤未知类型
-    const components = (p.components || [])
-      .map(comp => actions.normalizeComponentConfig(comp))
-      .filter(Boolean)
-    state.page.components = components
+    state.project = project
+
+    // 恢复激活的画布 / 页面（找不到则回退到第一个）
+    state.activeCanvasId = project.canvases.some(c => c.id === payload.activeCanvasId)
+      ? payload.activeCanvasId
+      : project.canvases[0].id
+
+    const canvas = project.canvases.find(c => c.id === state.activeCanvasId)
+    state.activePageId = canvas.pages.some(p => p.id === payload.activePageId)
+      ? payload.activePageId
+      : canvas.pages[0].id
+
+    syncActivePage()
 
     state.selectedId = null
     state.selectedIds = []
     state.draftRestored = true
     state.draftSavedAt = payload.savedAt
-    return { found: true, savedAt: payload.savedAt, componentCount: components.length }
+    return {
+      found: true,
+      savedAt: payload.savedAt,
+      componentCount: state.page ? state.page.components.length : 0,
+      canvasCount: project.canvases.length,
+      pageCount: canvas.pages.length
+    }
   } catch (error) {
     console.warn('草稿恢复失败:', error)
     return { found: false }
@@ -2023,9 +2323,11 @@ function clearPageDraft() {
 
 let draftSaveTimer = null
 
-// 页面数据变化后防抖自动保存草稿
+// 项目 / 页面数据变化后防抖自动保存草稿
+// 注意：监听整个 project（而不只是 state.page），这样切换画布/页面、
+// 增删页面、重命名等结构性改动同样会被保存
 watch(
-  () => state.page,
+  [() => state.project, () => state.activeCanvasId, () => state.activePageId],
   () => {
     state.draftSaving = true
     clearTimeout(draftSaveTimer)
@@ -2040,7 +2342,21 @@ watch(
 export function useEditor() {
   return {
     // 状态（只读）
-    page: state.page,
+    // 注意：page 是 computed，切换画布/页面后会自动指向新页面
+    // （模板里会自动解包，脚本里需要用 page.value）
+    page: computed(() => state.page),
+
+    // 项目 / 画布 / 页面
+    project: computed(() => state.project),
+    canvases: computed(() => state.project.canvases || []),
+    activeCanvasId: computed(() => state.activeCanvasId),
+    activePageId: computed(() => state.activePageId),
+    activeCanvas: computed(() => getActiveCanvas()),
+    pages: computed(() => {
+      const canvas = getActiveCanvas()
+      return canvas ? canvas.pages : []
+    }),
+
     selectedId: computed(() => state.selectedId),
     selectedIds: computed(() => state.selectedIds),
     selectedComponent,

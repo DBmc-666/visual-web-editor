@@ -48,8 +48,8 @@ const TYPE_ICONS = {
 const sortMode = ref('position')
 
 // 图层树：父子关系由几何包含关系自动推断（与布局修复共用 layerTree 模块）
-const tree = computed(() => buildLayerTree(page.components, { sortBy: sortMode.value }))
-const parentIds = computed(() => computeParentIds(page.components))
+const tree = computed(() => buildLayerTree(page.value?.components || [], { sortBy: sortMode.value }))
+const parentIds = computed(() => computeParentIds(page.value?.components || []))
 
 // 仅「按层级」模式下支持拖拽排序（按位置排序时顺序由坐标决定，拖拽无意义）
 const dragEnabled = computed(() => sortMode.value === 'stack')
