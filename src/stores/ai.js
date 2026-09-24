@@ -18,14 +18,18 @@ import {
 import { chatCompletion, testConnection, AiRequestError } from '../services/aiService.js'
 import {
   buildGenerateMessages,
+  buildSiteMessages,
   buildFinalHtmlMessages,
   extractHtmlCode,
   AI_MODES,
   AI_MODE_LABELS,
+  GENERATE_SCOPES,
+  GENERATE_SCOPE_LABELS,
+  GENERATE_SCOPE_HINTS,
   PAGE_STYLE_OPTIONS
 } from '../utils/aiPromptBuilder.js'
-import { parseAiPageResponse } from '../utils/aiResponseParser.js'
-import { getPageContract } from '../utils/componentSchema.js'
+import { parseAiPageResponse, parseAiSiteResponse } from '../utils/aiResponseParser.js'
+import { getPageContract, getSiteContract } from '../utils/componentSchema.js'
 import { generatePageHTML, downloadHTML, exportVue } from '../utils/htmlGenerator.js'
 
 /**
@@ -68,6 +72,9 @@ const state = reactive({
   // 生成选项
   instruction: '',                 // 用户补充说明
   mode: AI_MODES.COMPLETE,         // 生成模式
+  scope: GENERATE_SCOPES.PAGE,     // 生成范围：单页 / 整站多页
+  sitePageCount: 4,                // 整站生成的期望页面数（提示 AI 用）
+  replaceCanvas: false,            // 整站生成时是否替换当前画布已有页面
   styleKey: 'modern',              // 视觉风格
   pageType: '',                    // 页面类型描述
   outputMode: OUTPUT_MODES.CANVAS, // 输出模式
@@ -79,6 +86,7 @@ const state = reactive({
 
   // 生成结果
   result: null,                    // { page, mode, createdAt }
+  siteResult: null,                // { site: { name, pages }, stats, pagesRepair, createdAt }
   applied: false,                  // 是否已应用/导出
   resultMessage: '',               // 应用/导出后的提示
 
@@ -115,10 +123,23 @@ function updatePageType(value) {
 function updateOutputMode(mode) {
   state.outputMode = mode
 }
+// 切换生成范围（单页 / 整站多页）
+function updateScope(scope) {
+  state.scope = scope
+  resetResult()
+}
+function updateSitePageCount(count) {
+  const n = parseInt(count, 10)
+  state.sitePageCount = Number.isFinite(n) ? Math.max(1, Math.min(12, n)) : 4
+}
+function updateReplaceCanvas(value) {
+  state.replaceCanvas = !!value
+}
 
 // 清空生成结果（选项变化后要求重新生成）
 function resetResult() {
   state.result = null
+  state.siteResult = null
   state.applied = false
   state.resultMessage = ''
   state.error = null
@@ -219,12 +240,16 @@ async function generate() {
   state.resultMessage = ''
 
   try {
-    // 1. 页面数据契约
+    // 1. 页面契约 + 站点契约
+    // 站点契约让 AI 知道"本站有哪些页面"，从而在导航栏/页脚里写出正确的跨页链接
     const pageContract = getPageContract(editorState.page)
+    const { activeCanvas, activePageId } = useEditor()
+    const siteContract = getSiteContract(activeCanvas.value, activePageId.value)
 
     // 2. 构建 Prompt
     const { system, user } = buildGenerateMessages({
       pageContract,
+      siteContract,
       instruction: state.instruction,
       mode: state.mode,
       styleKey: state.styleKey,
@@ -244,10 +269,10 @@ async function generate() {
     })
 
     // 4. 解析并校验（内部会自动修复 AI 造成的组件重叠）
-    const parsed = parseAiPageResponse(content, {
-      maxWidth: editorState.page.width,
-      maxHeight: editorState.page.height
-    })
+    // 注意：这里**不**传入当前页面尺寸作为裁剪边界。否则 AI 写出的高页面会被压扁到
+    // 当前页高度（如 800px）以内，产生大量本可避免的重叠，再由修复逻辑强行摊开；
+    // 使用默认边界（3840 × 8000）能保留 AI 原本推算好的坐标，修复量显著更小
+    const parsed = parseAiPageResponse(content)
 
     if (!parsed.success) {
       state.error = (parsed.errors || []).join('；')
@@ -269,6 +294,84 @@ async function generate() {
       mode: state.mode,
       createdAt: Date.now()
     }
+  } catch (error) {
+    if (error instanceof AiRequestError) {
+      state.error = error.message
+    } else {
+      state.error = error?.message || '生成失败，请重试'
+    }
+  } finally {
+    state.generating = false
+  }
+}
+
+/**
+ * 生成整个站点（多页面）
+ *
+ * 与 generate() 的区别：一次让 AI 输出**多个页面**的画布数据
+ * （JSON 顶层为 { siteName, pages: [...] }）。应用时在当前画布创建这些页面，
+ * 并把以页面名书写的跨页链接（`#page:关于我们`）解析为真实页面 id。
+ */
+async function generateSite() {
+  const check = validateAiSettings(state.settings)
+  if (!check.ok) {
+    state.error = check.message
+    return
+  }
+  if (state.generating) return
+
+  state.generating = true
+  state.error = null
+  state.siteResult = null
+  state.result = null
+  state.applied = false
+  state.resultMessage = ''
+  state.repairInfo = null
+  state.finalHtml = ''
+
+  try {
+    const { activeCanvas, activePageId } = useEditor()
+    const siteContract = getSiteContract(activeCanvas.value, activePageId.value)
+
+    const { system, user } = buildSiteMessages({
+      siteContract,
+      instruction: state.instruction,
+      styleKey: state.styleKey,
+      pageType: state.pageType,
+      pageCount: state.sitePageCount
+    })
+
+    const content = await chatCompletion({
+      baseUrl: state.settings.baseUrl,
+      apiKey: state.settings.apiKey,
+      model: state.settings.model,
+      temperature: state.settings.temperature ?? 0.7,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user }
+      ]
+    })
+
+    const parsed = parseAiSiteResponse(content, { maxPages: 12 })
+    if (!parsed.success) {
+      state.error = (parsed.errors || []).join('；')
+      return
+    }
+
+    state.siteResult = {
+      site: parsed.site,
+      stats: parsed.stats,
+      pagesRepair: parsed.pagesRepair,
+      warnings: parsed.errors || [],
+      createdAt: Date.now()
+    }
+
+    state.repairInfo = parsed.stats.overlapsBefore > 0
+      ? {
+          overlapsBefore: parsed.stats.overlapsBefore,
+          overlapsAfter: parsed.stats.overlapsAfter
+        }
+      : null
   } catch (error) {
     if (error instanceof AiRequestError) {
       state.error = error.message
@@ -392,9 +495,35 @@ async function applyResult() {
     return
   }
 
-  if (!state.result) return
+  if (!state.result && !state.siteResult) return
   const r = state.result
   state.applied = true
+
+  // 模式：整站多页 → 在当前画布创建页面，并把跨页链接串联起来
+  if (state.siteResult) {
+    try {
+      const { applySitePages } = useEditor()
+      const applied = applySitePages(state.siteResult.site.pages, { replace: state.replaceCanvas })
+      if (!applied) {
+        state.applied = false
+        state.error = '应用失败：没有可用的页面数据'
+        return
+      }
+
+      const { total, unresolved } = applied.linkStats
+      const linkText = total > 0
+        ? `，已串联 ${total - unresolved} 个页面跳转链接${unresolved > 0 ? `（${unresolved} 个未找到目标页面）` : ''}`
+        : ''
+
+      state.resultMessage = applied.replaced
+        ? `✅ 已用 ${applied.created} 个页面替换当前画布内容${linkText}`
+        : `✅ 已创建 ${applied.created} 个页面：${applied.pageNames.join('、')}${linkText}`
+    } catch (error) {
+      state.applied = false
+      state.error = `应用失败：${error.message}`
+    }
+    return
+  }
 
   // 模式一：按画布像素布局导出 HTML
   if (state.outputMode === OUTPUT_MODES.HTML) {
@@ -460,13 +589,17 @@ function copyFinalHtml() {
 }
 
 /**
- * 生成入口：按输出模式自动选择链路
+ * 生成入口：按输出模式与生成范围自动选择链路
  * - FINAL_HTML：走"成品网页"链路（AI 写语义化 HTML/CSS）
- * - 其他模式：走"画布数据"链路（绝对坐标 + 自动修复重叠）
+ * - scope=site：走"整站多页"链路（AI 一次生成多个页面）
+ * - 其他：走"画布数据"链路（绝对坐标 + 自动修复重叠）
  */
 async function runGenerate() {
   if (state.outputMode === OUTPUT_MODES.FINAL_HTML) {
     return generateFinalHtml()
+  }
+  if (state.scope === GENERATE_SCOPES.SITE) {
+    return generateSite()
   }
   return generate()
 }
@@ -481,6 +614,10 @@ export function useAi() {
     apiKeyFile: computed(() => state.apiKeyFile),
     instruction: computed(() => state.instruction),
     mode: computed(() => state.mode),
+    scope: computed(() => state.scope),
+    sitePageCount: computed(() => state.sitePageCount),
+    replaceCanvas: computed(() => state.replaceCanvas),
+    siteResult: computed(() => state.siteResult),
     styleKey: computed(() => state.styleKey),
     pageType: computed(() => state.pageType),
     outputMode: computed(() => state.outputMode),
@@ -498,6 +635,9 @@ export function useAi() {
     AI_PROVIDERS,
     AI_MODES,
     AI_MODE_LABELS,
+    GENERATE_SCOPES,
+    GENERATE_SCOPE_LABELS,
+    GENERATE_SCOPE_HINTS,
     PAGE_STYLE_OPTIONS,
     OUTPUT_MODES,
     OUTPUT_MODE_LABELS,
@@ -513,6 +653,9 @@ export function useAi() {
     clearApiKey,
     updateInstruction,
     updateMode,
+    updateScope,
+    updateSitePageCount,
+    updateReplaceCanvas,
     updateStyleKey,
     updatePageType,
     updateOutputMode,

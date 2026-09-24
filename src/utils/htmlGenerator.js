@@ -7,6 +7,7 @@
 
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
+import { sanitizeSlug } from './pageLinks.js'
 
 /**
  * HTML字符转义函数
@@ -1868,7 +1869,11 @@ export function buildPageFileMap(pages) {
   const used = new Set()
 
   ;(pages || []).forEach((page, index) => {
-    const base = index === 0 ? 'index.html' : `${slugifyPageName(page.name, index + 1)}.html`
+    // 优先使用页面自带的英文 slug（AI 多页生成时会给出，如 products），否则按页面名生成
+    const aiSlug = sanitizeSlug(page.slug)
+    const base = index === 0
+      ? 'index.html'
+      : `${aiSlug || slugifyPageName(page.name, index + 1)}.html`
     let candidate = base
     let n = 2
     while (used.has(candidate)) {
@@ -1883,16 +1888,37 @@ export function buildPageFileMap(pages) {
 }
 
 /**
+ * 构建「页面名 → 导出文件名」映射
+ * AI 生成时可能用页面名书写跳转链接（`#page:关于我们`），正常情况下会在
+ * 应用阶段被解析为页面 ID；这里作为兜底，让未解析的名称也能正确导出
+ * @param {Array} pages - 页面数组
+ * @param {Object} fileMap - { [pageId]: 'about.html' }
+ * @returns {Object} { '关于我们': 'about.html' }
+ */
+export function buildPageNameFileMap(pages, fileMap = {}) {
+  const out = {}
+  ;(pages || []).forEach(page => {
+    const name = String(page.name || '').trim()
+    const file = fileMap[page.id]
+    if (!name || !file) return
+    out[name] = file
+    out[name.toLowerCase()] = file
+  })
+  return out
+}
+
+/**
  * 重写页面间跳转链接
- * 编辑器中页面链接统一写成 `#page:<pageId>`，导出时替换为目标页面文件名；
- * 找不到目标（例如单页导出）时降级为 `#`
+ * 编辑器中页面链接统一写成 `#page:<页面ID>`（AI 生成时也允许写 `#page:<页面名>`），
+ * 导出时替换为目标页面文件名；找不到目标（例如单页导出）时降级为 `#`
  * @param {string} html - 已生成的 HTML
  * @param {Object} fileMap - { [pageId]: 'about.html' }
+ * @param {Object} [nameFileMap] - { [pageName]: 'about.html' }，用于兜底解析页面名写法
  * @returns {string}
  */
-export function rewritePageLinks(html, fileMap = {}) {
-  return String(html).replace(/#page:([A-Za-z0-9_-]+)/g, (match, pageId) => {
-    return fileMap[pageId] || '#'
+export function rewritePageLinks(html, fileMap = {}, nameFileMap = {}) {
+  return String(html).replace(/#page:([^"'\s<>|]+)/g, (match, target) => {
+    return fileMap[target] || nameFileMap[target] || nameFileMap[target.toLowerCase()] || '#'
   })
 }
 
@@ -1920,9 +1946,10 @@ export async function exportSiteWithImages(canvas, filename = 'site') {
   }
 
   const fileMap = buildPageFileMap(pages)
+  const nameFileMap = buildPageNameFileMap(pages, fileMap)
 
   pages.forEach(page => {
-    const html = rewritePageLinks(generatePageHTML(page, imagePaths), fileMap)
+    const html = rewritePageLinks(generatePageHTML(page, imagePaths), fileMap, nameFileMap)
     zip.file(fileMap[page.id], html)
   })
 

@@ -6,6 +6,7 @@
 
 import { reactive, computed, watch } from 'vue'
 import { generateId, generatePageId } from '../utils/idGenerator'
+import { buildPageNameIndex, resolvePagesPageLinks, countPageLinks, sanitizeSlug } from '../utils/pageLinks.js'
 
 /**
  * 草稿持久化存储键
@@ -580,6 +581,8 @@ function createPageState(name = '未命名页面') {
   return {
     id: generatePageId(),
     name,
+    // 导出文件名（英文 slug，如 products → products.html）；留空则按页面名自动生成
+    slug: '',
     width: 1200,
     height: 800,
     backgroundColor: '#ffffff',
@@ -633,6 +636,7 @@ function normalizePageData(p) {
   const page = createPageState(typeof source.name === 'string' ? source.name : '未命名页面')
 
   if (typeof source.id === 'string' && source.id) page.id = source.id
+  if (typeof source.slug === 'string' && source.slug.trim()) page.slug = sanitizeSlug(source.slug)
   if (typeof source.width === 'number') page.width = source.width
   if (typeof source.height === 'number') page.height = source.height
   if (typeof source.backgroundColor === 'string') page.backgroundColor = source.backgroundColor
@@ -1540,6 +1544,56 @@ const actions = {
     const [page] = canvas.pages.splice(index, 1)
     canvas.pages.splice(target, 0, page)
     return true
+  },
+
+  /**
+   * 应用 AI 生成的多页站点
+   * 在当前画布中创建这些页面（分配新 id），并把组件里以页面名书写的
+   * 跨页链接（`#page:关于我们`）解析为真实页面 id
+   * @param {Array} pages - 页面数据数组（来自 parseAiSiteResponse）
+   * @param {Object} [options]
+   * @param {boolean} [options.replace=false] - 是否替换当前画布已有页面
+   * @returns {{created: number, replaced: boolean, pageNames: string[], linkStats: {total: number, unresolved: number}}|null}
+   */
+  applySitePages(pages, options = {}) {
+    const canvas = getActiveCanvas()
+    if (!canvas || !Array.isArray(pages) || pages.length === 0) return null
+
+    // 1. 规范化并分配新 id（忽略 AI 传来的 id，避免与已有页面冲突）
+    const created = pages.map(pageData => {
+      const page = normalizePageData({ ...pageData, id: undefined })
+      const name = String(pageData?.name || '').trim()
+      if (name) page.name = name
+      return page
+    })
+
+    // 2. 建立「页面名 → 新 id」索引，并解析组件里的跨页链接
+    const nameIndex = buildPageNameIndex(created)
+    resolvePagesPageLinks(created, nameIndex)
+
+    // 3. 写入画布
+    if (options.replace) {
+      canvas.pages = created
+    } else {
+      canvas.pages.push(...created)
+    }
+
+    // 4. 切到第一个新页面
+    state.activePageId = created[0].id
+    actions.deselectComponent()
+    syncActivePage()
+
+    // 5. 统计链接串联情况（未解析的数量会提示用户）
+    const validIds = new Set(created.map(p => p.id))
+    const linkStats = countPageLinks(created, validIds)
+
+    return {
+      created: created.length,
+      replaced: !!options.replace,
+      pageIds: created.map(p => p.id),
+      pageNames: created.map(p => p.name),
+      linkStats
+    }
   },
 
   // 更新组件属性

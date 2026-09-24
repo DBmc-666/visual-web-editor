@@ -463,6 +463,31 @@ export function getPageContract(page) {
   }))
 }
 
+/**
+ * 将整个画布（站点）的页面清单序列化为给 AI 看的「站点契约」
+ * 只包含页面级结构信息（名称 / 是否当前页 / 尺寸 / 组件数），不含组件明细，
+ * 用于让 AI 知道"本站有哪些页面"，从而在导航栏、页脚里写出正确的页面跳转链接
+ * （链接写法：`#page:<页面名>`，页面创建后会自动解析为真实 ID）
+ * @param {Object} canvas - 画布数据 { name, pages }
+ * @param {string} activePageId - 当前正在编辑的页面 ID
+ * @returns {Object} 站点契约
+ */
+export function getSiteContract(canvas, activePageId) {
+  const pages = (canvas?.pages || []).map(page => ({
+    name: page.name,
+    isCurrent: page.id === activePageId,
+    width: page.width,
+    height: page.height,
+    componentCount: (page.components || []).length
+  }))
+
+  return {
+    siteName: canvas?.name || '未命名画布',
+    pageCount: pages.length,
+    pages
+  }
+}
+
 export default {
   KNOWN_COMPONENT_TYPES,
   STYLE_FIELDS,
@@ -471,5 +496,6 @@ export default {
   sanitizeComponent,
   sanitizePageData,
   getSchemaForPrompt,
-  getPageContract
+  getPageContract,
+  getSiteContract
 }

@@ -46,17 +46,27 @@ const modelSuggestions = computed(() => currentProvider.value?.models || [])
 const generateButtonText = computed(() => {
   if (ai.generating.value) return '⏳ 生成中...'
   if (ai.outputMode.value === OUTPUT_MODES.FINAL_HTML) return '🌐 生成成品网页（HTML/CSS）'
+  if (ai.scope.value === ai.GENERATE_SCOPES.SITE) return '🏗 生成整个站点（多页面）'
   return '✨ 开始 AI 生成'
 })
 
-// 应用按钮文案（跟随输出模式）
+// 应用按钮文案（跟随输出模式与生成范围）
 const applyButtonText = computed(() => {
+  if (ai.siteResult.value) {
+    return ai.replaceCanvas.value
+      ? '✅ 替换当前画布（创建这些页面）'
+      : '✅ 创建这些页面并回到画布'
+  }
   switch (ai.outputMode.value) {
     case OUTPUT_MODES.HTML: return '📄 导出 HTML（像素布局）'
     case OUTPUT_MODES.VUE: return '📦 导出 Vue 工程（像素布局）'
     default: return '✅ 应用并回到画布'
   }
 })
+
+// 整站生成结果的页面统计
+const siteStats = computed(() => ai.siteResult.value?.stats || null)
+const sitePagesRepair = computed(() => ai.siteResult.value?.pagesRepair || [])
 
 // 打开时清空一次错误信息
 function handleGenerate() {
@@ -248,8 +258,51 @@ function handleGenerate() {
               </div>
             </div>
 
-            <!-- 生成模式 -->
+            <!-- 生成范围 -->
             <div class="ai-field">
+              <label class="ai-label">生成范围</label>
+              <div class="ai-radio-list ai-radio-list-vertical">
+                <label
+                  v-for="(label, key) in ai.GENERATE_SCOPE_LABELS"
+                  :key="key"
+                  class="ai-radio ai-radio-block"
+                  :class="{ active: ai.scope.value === key }"
+                >
+                  <input type="radio" :value="key" :checked="ai.scope.value === key" @change="ai.updateScope(key)" />
+                  <span class="ai-radio-text">
+                    <span class="ai-radio-label">{{ label }}</span>
+                    <span class="ai-radio-hint">{{ ai.GENERATE_SCOPE_HINTS[key] }}</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 整站生成选项 -->
+            <div v-if="ai.scope.value === ai.GENERATE_SCOPES.SITE" class="ai-field ai-site-options">
+              <div class="ai-site-row">
+                <label class="ai-label">期望页面数</label>
+                <input
+                  type="number"
+                  class="input ai-site-count"
+                  min="1"
+                  max="12"
+                  :value="ai.sitePageCount.value"
+                  @input="ai.updateSitePageCount($event.target.value)"
+                />
+                <span class="ai-site-hint">AI 会据此规划页面数量（可按内容增减）</span>
+              </div>
+              <label class="ai-site-row ai-checkbox-row">
+                <input
+                  type="checkbox"
+                  :checked="ai.replaceCanvas.value"
+                  @change="ai.updateReplaceCanvas($event.target.checked)"
+                />
+                <span>替换当前画布已有页面（默认追加为新页面，不删除已有内容）</span>
+              </label>
+            </div>
+
+            <!-- 生成模式 -->
+            <div v-if="ai.scope.value !== ai.GENERATE_SCOPES.SITE" class="ai-field">
               <label class="ai-label">生成模式</label>
               <div class="ai-radio-list">
                 <label
@@ -298,6 +351,9 @@ function handleGenerate() {
           <span v-if="ai.generating.value" class="ai-generating-tip">
             <template v-if="ai.outputMode.value === OUTPUT_MODES.FINAL_HTML">
               正在让 AI 根据你的画布草图编写完整前端页面代码，通常需要 20~90 秒……
+            </template>
+            <template v-else-if="ai.scope.value === ai.GENERATE_SCOPES.SITE">
+              正在让 AI 规划整个站点并逐页生成画布数据（页面越多越慢，通常 40~180 秒）……
             </template>
             <template v-else>
               正在让 AI 分析你的布局并生成页面数据（返回后会自动修复组件重叠），通常需要 10~60 秒……
@@ -401,6 +457,70 @@ function handleGenerate() {
 
           <div v-if="ai.resultMessage.value" class="ai-success">
             {{ ai.resultMessage.value }}
+          </div>
+        </div>
+
+        <!-- ============ 结果预览（整站多页链路） ============ -->
+        <div v-if="ai.siteResult.value" class="ai-result">
+          <div class="ai-result-header">
+            <span class="ai-result-title">🏗 整站生成结果：{{ ai.siteResult.value.site.name }}</span>
+          </div>
+
+          <!-- 汇总统计 -->
+          <div class="ai-stats">
+            <div class="ai-stat-item">
+              <span class="ai-stat-num highlight">{{ siteStats.pageCount }}</span>
+              <span class="ai-stat-label">个页面</span>
+            </div>
+            <div class="ai-stat-arrow">·</div>
+            <div class="ai-stat-item">
+              <span class="ai-stat-num">{{ siteStats.componentCount }}</span>
+              <span class="ai-stat-label">个组件</span>
+            </div>
+            <div class="ai-stat-detail">
+              <span v-if="siteStats.overlapsBefore > 0" class="ai-tag keep">
+                重叠修复 {{ siteStats.overlapsBefore }} → {{ siteStats.overlapsAfter }}
+              </span>
+              <span v-else class="ai-tag add">无重叠</span>
+            </div>
+          </div>
+
+          <!-- 页面清单 -->
+          <div class="ai-site-pages">
+            <div v-for="(pageRepair, index) in sitePagesRepair" :key="index" class="ai-site-page-item">
+              <span class="ai-site-page-index">{{ index + 1 }}</span>
+              <span class="ai-site-page-name">{{ pageRepair.name }}</span>
+              <span v-if="pageRepair.slug" class="ai-tag">{{ pageRepair.slug }}.html</span>
+              <span class="ai-tag type">{{ pageRepair.componentCount }} 组件</span>
+              <span v-if="pageRepair.overlapsBefore > 0" class="ai-tag keep">
+                修复 {{ pageRepair.overlapsBefore }} → {{ pageRepair.overlapsAfter }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="ai.siteResult.value.warnings && ai.siteResult.value.warnings.length" class="ai-site-warning">
+            ⚠️ {{ ai.siteResult.value.warnings.join('；') }}
+          </div>
+
+          <div class="ai-result-actions">
+            <button
+              class="btn btn-primary ai-apply-btn"
+              :disabled="ai.applied.value"
+              @click="ai.applyResult()"
+            >
+              {{ applyButtonText }}
+            </button>
+            <button v-if="ai.applied.value" class="btn ai-close-result" @click="ai.closePanel()">
+              完成，关闭面板
+            </button>
+          </div>
+
+          <div v-if="ai.resultMessage.value" class="ai-success">
+            {{ ai.resultMessage.value }}
+          </div>
+          <div v-if="!ai.applied.value" class="ai-site-tip">
+            应用后会把这些页面创建到当前画布，并自动把导航栏 / 页脚里的「跳转到页面」链接关联到对应页面
+            （导出整站时链接会变成真实文件名）。
           </div>
         </div>
       </div>
@@ -952,5 +1072,101 @@ function handleGenerate() {
   color: var(--color-success);
   border-radius: var(--border-radius);
   font-size: 13px;
+}
+
+/* ============ 整站多页生成 ============ */
+
+.ai-site-options {
+  padding: 10px;
+  background-color: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--border-radius);
+}
+
+.ai-site-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.ai-site-row + .ai-site-row {
+  margin-top: 8px;
+}
+
+.ai-site-count {
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.ai-site-hint {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.ai-checkbox-row {
+  cursor: pointer;
+}
+
+.ai-checkbox-row input {
+  flex-shrink: 0;
+}
+
+.ai-site-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.ai-site-page-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  font-size: 13px;
+}
+
+.ai-site-page-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.ai-site-page-name {
+  font-weight: 600;
+  color: var(--color-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-site-warning {
+  padding: 8px 10px;
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  color: #ad6800;
+  border-radius: var(--border-radius);
+  font-size: 12px;
+}
+
+.ai-site-tip {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
 }
 </style>

@@ -21,6 +21,24 @@ export const AI_MODE_LABELS = {
   [AI_MODES.APPEND]: '追加新区块'
 }
 
+/**
+ * 生成范围
+ */
+export const GENERATE_SCOPES = {
+  PAGE: 'page',   // 只生成当前页面
+  SITE: 'site'    // 生成整个站点（多个页面）
+}
+
+export const GENERATE_SCOPE_LABELS = {
+  [GENERATE_SCOPES.PAGE]: '只生成当前页面',
+  [GENERATE_SCOPES.SITE]: '生成整个站点（多个页面）'
+}
+
+export const GENERATE_SCOPE_HINTS = {
+  [GENERATE_SCOPES.PAGE]: 'AI 只处理当前打开的页面（可感知本站其他页面，从而写出正确的导航跳转链接）',
+  [GENERATE_SCOPES.SITE]: 'AI 一次性规划并生成多个页面，自动创建到当前画布，并把导航/页脚里的页面跳转链接互相关联'
+}
+
 // 常见页面风格选项
 export const PAGE_STYLE_OPTIONS = [
   { key: 'modern', label: '现代简约', desc: '大量留白、简洁线条' },
@@ -31,10 +49,86 @@ export const PAGE_STYLE_OPTIONS = [
   { key: 'fresh', label: '清新自然', desc: '浅色系、柔和过渡' }
 ]
 
+// ==================== 画布类生成的公共规则 ====================
+
+// 绝对坐标画布的硬性规则（单页生成与多页生成共用）
+const CANVAS_COORDINATE_RULES = [
+  '## 画布坐标模型（必须严格遵守，否则所有组件会叠成一团）',
+  '编辑器是「绝对定位画布」：每个组件的 left/top 是它相对页面左上角的**绝对像素坐标**，不是文档流。',
+  '系统**不会**自动排布，写出相同的 top 就会**精确重叠**。因此：',
+  '1. 同一列中上下相邻的组件，后一个的 top 必须 ≥ 前一个的 top + 前一个的 height（建议再加 16~32px 间距）。',
+  '2. **禁止**为了省事给多个组件写同一个 top，所有组件的 top 都要逐个推算。',
+  '3. 先在脑中按区块累加：区块1 从 y=0 开始，高度 h1；区块2 的 top = h1 + 间距；依此类推。',
+  '4. 并排（同一行）的组件可以共享同一个 top，但它们的 left 区间**不能相交**。',
+  '5. 页面 height 必须大于所有组件 (top + height) 的最大值，建议再多留 40px。',
+  '',
+  '### 坐标推算示例（务必照此方式思考）',
+  '  导航栏:   top=0,   height=72  → 下边界 72',
+  '  主标题:   top=112, height=58  → 下边界 170',
+  '  副标题:   top=186, height=76  → 下边界 262',
+  '  按钮行:   top=300, height=48  → 下边界 348',
+  '  分隔线:   top=396, height=2   → 下边界 398',
+  '  第一行卡片: top=450, height=380 → 下边界 830',
+  '  第二行卡片: top=880, height=380 → 下边界 1260（= 上一行下边界 + 50 间距）',
+  '  页脚:     top=1320, height=200 → 下边界 1520（页面 height 至少 1560）',
+  '',
+  '### 容器与子元素',
+  '- container 是背景方块，其内部的图片/文字要落在它的矩形范围内（left/top 在容器内）。',
+  '- 容器内的多个子元素同样不能互相重叠：例如卡片内「分类 top=860、标题 top=890、简介 top=925、链接 top=1000」逐行累加。',
+  '- 容器高度要能装下子元素，子元素最下边界之外再留 8~16px。'
+].join('\n')
+
+// 页面 JSON 的顶层结构（单页模式）
+const PAGE_JSON_SHAPE_RULES = [
+  '## 页面 JSON 结构',
+  '- JSON 顶层包含：name, width, height, backgroundColor, backgroundType, backgroundGradientStart, backgroundGradientEnd, backgroundGradientAngle, backgroundImage, backgroundImageSize, backgroundImagePosition, backgroundImageRepeat, components。'
+].join('\n')
+
+// 组件与内容的输出规范（单页 / 多页共用）
+const COMPONENT_OUTPUT_RULES = [
+  '## 输出要求（非常重要）',
+  '- 只输出一个 JSON 对象，不要输出任何解释、注释或 Markdown 代码块标记。',
+  '- components 是组件数组，每个组件包含：id, type, name, left, top, width, height, zIndex, style, props。',
+  '- 必须遵守下面的 Schema 白名单，禁止使用白名单之外的类型、style 键、props 键。',
+  '- 字段归属要正确：textAlign 属于 props（文本/按钮/链接组件）；zIndex 为整数、越大越靠上（container 用较小值如 1~2，普通内容用 3~5，浮层可更大，不要用超大值）。',
+  '- 坐标与尺寸一律用**数字**（不要写 "6px" 这类字符串）；只有 style.borderRadius 允许带单位（如 "10px" 或 "50%"）。',
+  '- 新补充的组件 id 用 "new-1"、"new-2" 这类字符串；已存在组件的 id 尽量保留其 id 与用户设置的内容。',
+  '- 页面必须有完整的结构：导航、主体内容、页脚等；不要让页面看起来空荡。',
+  '- 文本内容用中文书写，专业、贴合页面用途；图片使用 https:// 开头的公开占位图 URL（如 https://picsum.photos/seed/xxx/800/400）。'
+].join('\n')
+
+// 跨页链接写法（站点页面清单非空时才加入 Prompt）
+const PAGE_LINK_RULES = [
+  '## 跨页链接写法（重要）',
+  '- 导航栏、页脚、按钮、列表项、轮播图等需要「跳到本站其他页面」时，链接统一写成 `#page:<页面名>`，例如 `#page:关于我们`。',
+  '- **只能使用下面清单里出现过的页面名**，不要编造页面名，也不要写 `#page:` 加数字或 ID。',
+  '- 跳到外部网站或页面内锚点照常用完整 URL（https://...）或 `#anchor`。'
+].join('\n')
+
 /**
- * 构建生成页面的消息
+ * 构建「本站页面清单」提示块
+ * @param {Object} siteContract - getSiteContract() 的结果
+ * @returns {string} 页面数 ≤1 时返回空串
+ */
+function buildSitePagesBlock(siteContract) {
+  const pages = siteContract?.pages || []
+  if (pages.length <= 1) return ''
+
+  return [
+    '',
+    '## 本站页面清单（站点结构）',
+    `站点名称：${siteContract.siteName}，共 ${pages.length} 个页面：`,
+    ...pages.map(p => `- 「${p.name}」${p.isCurrent ? '（当前正在编辑的页面）' : ''}${p.componentCount ? `，已有 ${p.componentCount} 个组件` : '，暂无内容'}`),
+    '',
+    PAGE_LINK_RULES
+  ].join('\n')
+}
+
+/**
+ * 构建生成页面的消息（单页模式）
  * @param {Object} options
  * @param {Object} options.pageContract - getPageContract(page) 的结果（当前页面）
+ * @param {Object} [options.siteContract] - getSiteContract(canvas, pageId) 的结果（用于跨页链接）
  * @param {string} options.instruction - 用户补充说明（期望的页面用途/内容）
  * @param {string} [options.mode=complete]
  * @param {string} [options.styleKey] - PAGE_STYLE_OPTIONS 里的 key
@@ -43,6 +137,7 @@ export const PAGE_STYLE_OPTIONS = [
  */
 export function buildGenerateMessages({
   pageContract,
+  siteContract,
   instruction,
   mode = AI_MODES.COMPLETE,
   styleKey,
@@ -52,44 +147,16 @@ export function buildGenerateMessages({
     '你是一名资深的网页设计师与前端工程师，擅长把用户的粗略布局打磨成专业的完整网页。',
     '你的任务：接收"编辑器的当前页面数据"和"用户要求"，输出**修改后的完整页面数据**。',
     '',
-    '## 画布坐标模型（必须严格遵守，否则所有组件会叠成一团）',
-    '编辑器是「绝对定位画布」：每个组件的 left/top 是它相对页面左上角的**绝对像素坐标**，不是文档流。',
-    '系统**不会**自动排布，写出相同的 top 就会**精确重叠**。因此：',
-    '1. 同一列中上下相邻的组件，后一个的 top 必须 ≥ 前一个的 top + 前一个的 height（建议再加 16~32px 间距）。',
-    '2. **禁止**为了省事给多个组件写同一个 top，所有组件的 top 都要逐个推算。',
-    '3. 先在脑中按区块累加：区块1 从 y=0 开始，高度 h1；区块2 的 top = h1 + 间距；依此类推。',
-    '4. 并排（同一行）的组件可以共享同一个 top，但它们的 left 区间**不能相交**。',
-    '5. 页面 height 必须大于所有组件 (top + height) 的最大值，建议再多留 40px。',
+    CANVAS_COORDINATE_RULES,
+    buildSitePagesBlock(siteContract),
     '',
-    '### 坐标推算示例（务必照此方式思考）',
-    '  导航栏:   top=0,   height=72  → 下边界 72',
-    '  主标题:   top=112, height=58  → 下边界 170',
-    '  副标题:   top=186, height=76  → 下边界 262',
-    '  按钮行:   top=300, height=48  → 下边界 348',
-    '  分隔线:   top=396, height=2   → 下边界 398',
-    '  第一行卡片: top=450, height=380 → 下边界 830',
-    '  第二行卡片: top=880, height=380 → 下边界 1260（= 上一行下边界 + 50 间距）',
-    '  页脚:     top=1320, height=200 → 下边界 1520（页面 height 至少 1560）',
+    PAGE_JSON_SHAPE_RULES,
     '',
-    '### 容器与子元素',
-    '- container 是背景方块，其内部的图片/文字要落在它的矩形范围内（left/top 在容器内）。',
-    '- 容器内的多个子元素同样不能互相重叠：例如卡片内「分类 top=860、标题 top=890、简介 top=925、链接 top=1000」逐行累加。',
-    '- 容器高度要能装下子元素，子元素最下边界之外再留 8~16px。',
-    '',
-    '## 输出要求（非常重要）',
-    '1. 只输出一个 JSON 对象，不要输出任何解释、注释或 Markdown 代码块标记。',
-    '2. JSON 顶层包含：name, width, height, backgroundColor, backgroundType, backgroundGradientStart, backgroundGradientEnd, backgroundGradientAngle, backgroundImage, backgroundImageSize, backgroundImagePosition, backgroundImageRepeat, components。',
-    '3. components 是组件数组，每个组件包含：id, type, name, left, top, width, height, zIndex, style, props。',
-    `4. 已存在的组件（带有 id）尽量保留其 id、相对布局与用户设置的内容；新补充的组件 id 用 "new-1"、"new-2" 这类字符串。`,
-    '5. 必须遵守下面的 Schema 白名单，禁止使用白名单之外的类型、style 键、props 键。',
-    '6. 字段归属要正确：textAlign 属于 props（文本/按钮/链接组件）；zIndex 为整数、越大越靠上（container 用较小值如 1~2，普通内容用 3~5，浮层可更大，不要用超大值）。',
-    '7. 坐标与尺寸一律用**数字**（不要写 "6px" 这类字符串）；只有 style.borderRadius 允许带单位（如 "10px" 或 "50%"）。',
-    '8. 页面必须有完整的结构：导航、主体内容、页脚等；不要让页面看起来空荡。',
-    '9. 文本内容用中文书写，专业、贴合页面用途；图片使用 https:// 开头的公开占位图 URL（如 https://picsum.photos/seed/xxx/800/400）。',
+    COMPONENT_OUTPUT_RULES,
     '',
     '## 组件 Schema（唯一合法依据）',
     getSchemaForPrompt()
-  ].join('\n')
+  ].filter(part => part !== '').join('\n')
 
   const modeInstruction = {
     [AI_MODES.COMPLETE]: '模式：补全当前页面。保留用户已有组件的布局和内容，在其基础上补齐缺失的区块（如页脚、导航、内容区），完善整体设计，使其成为完整的专业网页。',
@@ -113,6 +180,90 @@ export function buildGenerateMessages({
     '## 当前页面数据（JSON）',
     JSON.stringify(pageContract)
   ].join('\n')
+
+  return { system, user }
+}
+
+/**
+ * 构建"生成整个站点（多页面）"的消息
+ *
+ * 与单页生成的区别：
+ * - 一次输出**多个页面**的画布数据（JSON 顶层为 { siteName, pages: [...] }）
+ * - 页面之间用 `#page:<页面名>` 互相链接，应用时由编辑器解析为真实页面 ID
+ *
+ * @param {Object} options
+ * @param {Object} [options.siteContract] - getSiteContract(canvas, pageId) 的结果（已有站点结构）
+ * @param {string} [options.instruction] - 用户对整站的需求
+ * @param {string} [options.styleKey] - 视觉风格
+ * @param {string} [options.pageType] - 站点类型描述，如"企业官网"
+ * @param {number} [options.pageCount=4] - 期望页面数量（提示用）
+ * @returns {{system: string, user: string}}
+ */
+export function buildSiteMessages({
+  siteContract,
+  instruction,
+  styleKey,
+  pageType,
+  pageCount = 4
+}) {
+  const multiPageShape = [
+    '## 多页 JSON 结构（必须严格遵守）',
+    '- JSON 顶层为：{ "siteName": "站点名称", "pages": [ 页面对象, ... ] }',
+    '- 每个页面对象包含：name, slug, width, height, backgroundColor, components（如无渐变/背景图需求，无需其他背景字段）。',
+    '- **slug 是该页面的英文文件名**（只用小写字母、数字、连字符），用于导出成真实文件：',
+    '  首页→`index`、产品中心→`products`、关于我们→`about`、联系我们→`contact`、新闻→`news`、案例→`cases`。',
+    '  即使页面名是中文，也**必须**给出英文 slug。',
+    '- 示例：',
+    '{',
+    '  "siteName": "鼎信科技官网",',
+    '  "pages": [',
+    '    { "name": "首页", "slug": "index", "width": 1200, "height": 3200, "backgroundColor": "#ffffff", "components": [ ... ] },',
+    '    { "name": "产品中心", "slug": "products", "width": 1200, "height": 2400, "backgroundColor": "#ffffff", "components": [ ... ] },',
+    '    { "name": "关于我们", "slug": "about", "width": 1200, "height": 2000, "backgroundColor": "#ffffff", "components": [ ... ] }',
+    '  ]',
+    '}',
+    '- **每个页面都是独立画布**：坐标各自从 (0,0) 开始，页面之间不共用坐标。',
+    '- 每个页面都要有完整结构（导航栏 + 主体内容 + 页脚），导航栏与页脚在各页面保持一致的版式。',
+    '- 每个页面的组件 top 都要**独立逐个推算**，禁止跨页面复用同一套坐标。'
+  ].join('\n')
+
+  const system = [
+    '你是一名资深的网页设计师与前端工程师，擅长规划并搭建结构完整的多页网站。',
+    '你的任务：根据"用户对整站的需求"，一次性输出**整个站点的多个页面**的完整画布数据。',
+    '',
+    CANVAS_COORDINATE_RULES,
+    '',
+    multiPageShape,
+    '',
+    COMPONENT_OUTPUT_RULES,
+    '',
+    PAGE_LINK_RULES,
+    '',
+    '## 组件 Schema（唯一合法依据）',
+    getSchemaForPrompt()
+  ].filter(part => part !== '').join('\n')
+
+  const styleHint = PAGE_STYLE_OPTIONS.find(s => s.key === styleKey)
+    ? `整体视觉风格：${PAGE_STYLE_OPTIONS.find(s => s.key === styleKey)?.label}（${PAGE_STYLE_OPTIONS.find(s => s.key === styleKey)?.desc}）。`
+    : ''
+  const pageTypeHint = pageType ? `站点类型：${pageType}。` : ''
+
+  const existingBlock = (siteContract?.pages?.length > 0)
+    ? [
+        '',
+        '## 编辑器已有的站点结构（供参考，避免重复造页面）',
+        JSON.stringify(siteContract)
+      ].join('\n')
+    : ''
+
+  const user = [
+    `${pageTypeHint}${styleHint}`,
+    `期望页面数量：约 ${pageCount} 个页面（可按内容合理增减）。`,
+    '',
+    '## 用户对整站的需求',
+    instruction || '（无特别要求，请规划一个结构合理、内容专业的多页网站）',
+    existingBlock
+  ].filter(part => part !== '').join('\n')
 
   return { system, user }
 }
