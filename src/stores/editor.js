@@ -28,7 +28,15 @@ export const COMPONENT_TYPES = {
   // ========== 导航组件 ==========
   NAV_MENU: 'navMenu',    // 导航菜单
   BREADCRUMB: 'breadcrumb',// 面包屑导航
-  TABS: 'tabs'            // 标签页组件
+  TABS: 'tabs',           // 标签页组件
+
+  // ========== 内容组件（扩展） ==========
+  DIVIDER: 'divider',     // 分隔线
+  ICON: 'icon',           // 图标
+  LIST: 'list',           // 列表
+  TABLE: 'table',         // 表格
+  VIDEO: 'video',         // 视频
+  CAROUSEL: 'carousel'    // 轮播图
 }
 
 /**
@@ -53,6 +61,11 @@ export const COMPONENT_CATEGORIES = {
     name: '导航组件',
     icon: '🧭',
     components: ['navMenu', 'breadcrumb', 'tabs']
+  },
+  content: {
+    name: '内容组件',
+    icon: '🧩',
+    components: ['divider', 'icon', 'list', 'table', 'video', 'carousel']
   }
 }
 
@@ -420,6 +433,138 @@ export const COMPONENT_DEFAULTS = {
       tabPosition: 'top',       // 标签位置: 'top' | 'bottom'
       type: 'line'              // 样式类型: 'line' | 'card'
     }
+  },
+
+  // ==================== 内容组件（扩展） ====================
+
+  /**
+   * 分隔线组件 - 水平分割线，支持中间带文字
+   */
+  divider: {
+    name: '分隔线',
+    width: 400,
+    height: 24,
+    style: {
+      backgroundColor: 'transparent'
+    },
+    props: {
+      lineStyle: 'solid',   // 线条样式: solid | dashed | dotted
+      thickness: 1,         // 线宽（px）
+      color: '#e8e8e8',     // 线条颜色
+      text: '',             // 可选：线中间的文字
+      textColor: '#999999',
+      textSize: 12,
+      textGap: 12           // 文字与线之间的留白
+    }
+  },
+
+  /**
+   * 图标组件 - 使用 emoji / 字符，可选背景形状
+   */
+  icon: {
+    name: '图标',
+    width: 48,
+    height: 48,
+    style: {
+      fontSize: 32,
+      color: '#1890ff',
+      textAlign: 'center'
+    },
+    props: {
+      icon: '⭐',           // 图标字符（emoji 或符号）
+      shape: 'none',        // 背景形状: none | circle | square
+      shapeColor: '#f0f7ff',
+      shapeSize: 48         // 背景形状尺寸（px）
+    }
+  },
+
+  /**
+   * 列表组件 - 无序 / 有序 / 无标记
+   */
+  list: {
+    name: '列表',
+    width: 320,
+    height: 160,
+    style: {
+      fontSize: 14,
+      color: '#333333',
+      lineHeight: '2',
+      textAlign: 'left'
+    },
+    props: {
+      items: '第一项内容\n第二项内容\n第三项内容',  // 每行一项
+      listType: 'unordered',   // unordered | ordered | none
+      marker: '•',             // 无序列表标记符号
+      markerColor: '#1890ff',
+      itemSpacing: 4           // 项间距（px）
+    }
+  },
+
+  /**
+   * 表格组件 - 表头 + 数据行（用 | 分隔列）
+   */
+  table: {
+    name: '表格',
+    width: 600,
+    height: 180,
+    style: {
+      fontSize: 14,
+      color: '#333333',
+      backgroundColor: '#ffffff'
+    },
+    props: {
+      headers: '姓名|职位|城市',                    // 表头，| 分隔
+      rows: '张三|前端工程师|北京\n李四|产品设计师|上海\n王五|后端工程师|深圳',  // 每行一条，| 分隔列
+      showHeader: true,
+      headerBackground: '#f5f7fa',
+      headerColor: '#333333',
+      borderColor: '#e8e8e8',
+      striped: true,           // 斑马纹
+      cellPadding: 10          // 单元格内边距（px）
+    }
+  },
+
+  /**
+   * 视频组件 - 视频直链或 iframe 嵌入
+   */
+  video: {
+    name: '视频',
+    width: 560,
+    height: 315,
+    style: {
+      backgroundColor: '#000000',
+      borderRadius: 8
+    },
+    props: {
+      src: 'https://www.w3schools.com/html/mov_bbb.mp4',
+      videoType: 'file',       // file（视频直链）| iframe（嵌入地址，如 B站/YouTube）
+      poster: '',              // 封面图地址
+      autoplay: false,
+      loop: false,
+      muted: true,             // 静音（浏览器要求自动播放必须静音）
+      controls: true
+    }
+  },
+
+  /**
+   * 轮播图组件 - 多张图片自动/手动切换
+   */
+  carousel: {
+    name: '轮播图',
+    width: 600,
+    height: 300,
+    style: {
+      backgroundColor: '#f0f0f0',
+      borderRadius: 8
+    },
+    props: {
+      // 每行一项：图片地址|说明文字
+      images: 'https://picsum.photos/seed/slide1/600/300|第一张幻灯片\nhttps://picsum.photos/seed/slide2/600/300|第二张幻灯片\nhttps://picsum.photos/seed/slide3/600/300|第三张幻灯片',
+      autoplay: true,
+      interval: 3000,          // 自动播放间隔（ms）
+      showIndicators: true,    // 显示指示点
+      showArrows: true         // 显示左右箭头
+    }
   }
 }
 
@@ -778,13 +923,14 @@ const actions = {
     state.marqueeSelect = { active, startX, startY, endX, endY }
   },
 
-  // 获取框选区域内完全包含的子组件
+  // 获取完全包含在某组件矩形内的子组件（锁定的组件不计入，避免被连带移动）
   getChildrenInsideComponent(parentId) {
     const parent = state.page.components.find(c => c.id === parentId)
     if (!parent) return []
 
     return state.page.components.filter(comp => {
       if (comp.id === parentId) return false
+      if (comp.locked) return false
       return (
         comp.left >= parent.left &&
         comp.top >= parent.top &&
@@ -794,11 +940,27 @@ const actions = {
     })
   },
 
-  // 移动多个组件
+  /**
+   * 选中组件及其内部包含的所有组件（与画布上单击容器的行为一致）
+   * 用于图层面板双击：把整组组件一起选中，便于整体移动/对齐
+   * @param {string} id - 组件 id
+   * @returns {number} 选中的组件数量
+   */
+  selectComponentWithChildren(id) {
+    const parent = state.page.components.find(c => c.id === id)
+    if (!parent) return 0
+
+    const children = actions.getChildrenInsideComponent(id)
+    const ids = [id, ...children.map(c => c.id)]
+    actions.selectComponents(ids)
+    return ids.length
+  },
+
+  // 移动多个组件（锁定的组件会被跳过）
   moveComponents(ids, deltaX, deltaY, originalPositions = {}) {
     ids.forEach(id => {
       const component = state.page.components.find(c => c.id === id)
-      if (component) {
+      if (component && !component.locked) {
         const originalLeft = originalPositions[id]?.left ?? component.left
         const originalTop = originalPositions[id]?.top ?? component.top
         

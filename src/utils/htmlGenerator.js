@@ -917,6 +917,267 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
         attrs: `class="tabs-widget tabs-${tabType}"`
       }
 
+    // ==================== 内容组件（扩展） ====================
+
+    case 'divider': {
+      const dvStyle = props.lineStyle || 'solid'
+      const dvThickness = Number(props.thickness) || 1
+      const dvColor = props.color || '#e8e8e8'
+      const dvText = props.text || ''
+      const dvTextColor = props.textColor || '#999999'
+      const dvTextSize = Number(props.textSize) || 12
+      const dvGap = Number(props.textGap) || 12
+      const dvLineCss = `border-top: ${dvThickness}px ${dvStyle} ${dvColor}; flex: 1; height: 0; min-width: 0;`
+
+      const dvContent = dvText
+        ? `<span style="${dvLineCss} margin-right: ${dvGap}px;"></span>` +
+          `<span style="color: ${dvTextColor}; font-size: ${dvTextSize}px; white-space: nowrap; flex-shrink: 0;">${escapeHTML(dvText)}</span>` +
+          `<span style="${dvLineCss} margin-left: ${dvGap}px;"></span>`
+        : `<span style="${dvLineCss}"></span>`
+
+      return {
+        tag: 'div',
+        content: dvContent,
+        attrs: 'style="display: flex; align-items: center; box-sizing: border-box;"'
+      }
+    }
+
+    case 'icon': {
+      const icChar = props.icon || '⭐'
+      const icShape = props.shape || 'none'
+      const icShapeColor = props.shapeColor || '#f0f7ff'
+      const icShapeSize = Number(props.shapeSize) || 48
+      const icFontSize = Number(style.fontSize) || 32
+      const icColor = style.color || '#1890ff'
+      const icRadius = icShape === 'circle' ? '50%' : (icShape === 'square' ? '8px' : '0')
+      const icBg = icShape === 'none' ? 'transparent' : icShapeColor
+
+      return {
+        tag: 'div',
+        content: `<span style="display: flex; align-items: center; justify-content: center; width: ${icShapeSize}px; height: ${icShapeSize}px; background-color: ${icBg}; border-radius: ${icRadius}; font-size: ${icFontSize}px; color: ${icColor}; line-height: 1; flex-shrink: 0;">${escapeHTML(icChar)}</span>`,
+        attrs: 'style="display: flex; align-items: center; justify-content: center; box-sizing: border-box;"'
+      }
+    }
+
+    case 'list': {
+      const listItems = String(props.items || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [text, link] = line.split('|')
+          return { text: (text || '').trim(), link: (link || '').trim() }
+        })
+      const listType = props.listType || 'unordered'
+      const listMarker = props.marker || '•'
+      const listMarkerColor = props.markerColor || '#1890ff'
+      const listItemSpacing = Number(props.itemSpacing) || 0
+      const listLinkTarget = props.linkTarget || '_self'
+
+      const listContent = listItems.map((item, index) => {
+        let markerHtml = ''
+        if (listType === 'unordered') {
+          markerHtml = `<span style="color: ${listMarkerColor}; flex-shrink: 0;">${escapeHTML(listMarker)}</span>`
+        } else if (listType === 'ordered') {
+          markerHtml = `<span style="color: ${listMarkerColor}; flex-shrink: 0; min-width: 18px; text-align: right;">${index + 1}.</span>`
+        }
+        const textHtml = item.link
+          ? `<a href="${escapeAttr(item.link)}" target="${escapeAttr(listLinkTarget)}" style="color: inherit; text-decoration: underline;">${escapeHTML(item.text)}</a>`
+          : escapeHTML(item.text)
+        return `      <div style="display: flex; align-items: flex-start; gap: 6px; margin-bottom: ${listItemSpacing}px;">${markerHtml}<span style="flex: 1; min-width: 0;">${textHtml}</span></div>`
+      }).join('\n')
+
+      return {
+        tag: 'div',
+        content: listContent,
+        attrs: ''
+      }
+    }
+
+    case 'table': {
+      const parseCells = (line) => String(line).split('|').map(cell => cell.trim())
+      const tableHeaders = props.headers ? parseCells(props.headers) : []
+      const tableRows = String(props.rows || '')
+        .split('\n')
+        .filter(line => line.trim())
+        .map(parseCells)
+      const tableShowHeader = props.showHeader !== false
+      const tableHeaderBg = props.headerBackground || '#f5f7fa'
+      const tableHeaderColor = props.headerColor || '#333333'
+      const tableBorderColor = props.borderColor || '#e8e8e8'
+      const tableStriped = props.striped !== false
+      const tableCellPadding = Number(props.cellPadding) || 8
+      const tableCellStyle = `border: 1px solid ${tableBorderColor}; padding: ${tableCellPadding}px; text-align: left;`
+
+      let tableHtml = `    <table style="width: 100%; border-collapse: collapse;">`
+
+      if (tableShowHeader && tableHeaders.length > 0) {
+        tableHtml += `\n      <thead>\n        <tr>\n`
+        tableHtml += tableHeaders
+          .map(head => `          <th style="${tableCellStyle} background-color: ${tableHeaderBg}; color: ${tableHeaderColor}; font-weight: 600;">${escapeHTML(head)}</th>`)
+          .join('\n')
+        tableHtml += `\n        </tr>\n      </thead>`
+      }
+
+      tableHtml += `\n      <tbody>\n`
+      tableHtml += tableRows.map((row, rowIndex) => {
+        const rowBg = tableStriped && rowIndex % 2 === 1 ? ` background-color: #fafafa;` : ''
+        const cells = row
+          .map(cell => `          <td style="${tableCellStyle}${rowBg}">${escapeHTML(cell)}</td>`)
+          .join('\n')
+        return `        <tr>\n${cells}\n        </tr>`
+      }).join('\n')
+      tableHtml += `\n      </tbody>\n    </table>`
+
+      return {
+        tag: 'div',
+        content: tableHtml,
+        attrs: ''
+      }
+    }
+
+    case 'video': {
+      const videoSrc = props.src || ''
+      const videoIsIframe = props.videoType === 'iframe'
+      const videoPoster = props.poster || ''
+      const videoAutoplay = props.autoplay === true
+      const videoLoop = props.loop === true
+      const videoMuted = props.muted !== false
+      const videoControls = props.controls !== false
+
+      let videoHtml = ''
+      if (!videoSrc) {
+        videoHtml = `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999999; font-size: 13px;">请填写视频地址</div>`
+      } else if (videoIsIframe) {
+        videoHtml = `<iframe src="${escapeAttr(videoSrc)}" style="width: 100%; height: 100%; border: none; display: block;" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`
+      } else {
+        videoHtml = `<video src="${escapeAttr(videoSrc)}"` +
+          (videoPoster ? ` poster="${escapeAttr(videoPoster)}"` : '') +
+          (videoControls ? ' controls' : '') +
+          (videoAutoplay ? ' autoplay' : '') +
+          (videoMuted ? ' muted' : '') +
+          (videoLoop ? ' loop' : '') +
+          ` playsinline style="width: 100%; height: 100%; display: block; object-fit: contain; background-color: #000000;"></video>`
+      }
+
+      return {
+        tag: 'div',
+        content: videoHtml,
+        attrs: ''
+      }
+    }
+
+    case 'carousel': {
+      const carouselId = `carousel_${component.id.replace(/-/g, '_')}`
+      const carouselSlides = String(props.images || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [url, caption, link] = line.split('|')
+          return {
+            url: (url || '').trim(),
+            caption: (caption || '').trim(),
+            link: (link || '').trim()
+          }
+        })
+        .filter(slide => slide.url)
+
+      const carouselShowIndicators = props.showIndicators !== false
+      const carouselShowArrows = props.showArrows !== false
+      const carouselAutoplay = props.autoplay === true
+      const carouselInterval = Math.max(500, Number(props.interval) || 3000)
+      const carouselLinkTarget = props.linkTarget || '_self'
+
+      if (carouselSlides.length === 0) {
+        return {
+          tag: 'div',
+          content: `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999999; font-size: 13px; padding: 12px; box-sizing: border-box; text-align: center;">请填写图片地址（每行一项：地址|说明|链接）</div>`,
+          attrs: `data-carousel="${carouselId}"`
+        }
+      }
+
+      const arrowCss = 'position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border: none; border-radius: 50%; background-color: rgba(0,0,0,0.35); color: #ffffff; font-size: 20px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;'
+
+      let carouselContent = `\n      <div class="carousel-stage" style="position: absolute; inset: 0; overflow: hidden;">`
+
+      // 每张图：支持本地图片路径替换 + 可选超链接
+      carouselContent += carouselSlides.map((slide, index) => {
+        const slideImagePath = imagePaths[`${component.id}_slide_${index}`]
+        const slideSrc = slideImagePath || slide.url
+        const slideDisplay = index === 0 ? 'block' : 'none'
+        const imgStyle = `width: 100%; height: 100%; object-fit: cover; display: block;`
+
+        if (slide.link) {
+          return `
+        <a class="carousel-slide" href="${escapeAttr(slide.link)}" target="${escapeAttr(carouselLinkTarget)}" style="position: absolute; inset: 0; display: ${slideDisplay}; text-decoration: none;">
+          <img class="carousel-image" src="${escapeAttr(slideSrc)}" alt="${escapeAttr(slide.caption || '')}" style="${imgStyle}" />
+        </a>`
+        }
+
+        return `
+        <img class="carousel-slide" src="${escapeAttr(slideSrc)}" alt="${escapeAttr(slide.caption || '')}" style="position: absolute; inset: 0; ${imgStyle} display: ${slideDisplay};" />`
+      }).join('')
+
+      carouselSlides.forEach((slide, index) => {
+        if (!slide.caption) return
+        carouselContent += `
+        <div class="carousel-caption" style="position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px; background-color: rgba(0,0,0,0.45); color: #ffffff; font-size: 13px; display: ${index === 0 ? 'block' : 'none'};">${escapeHTML(slide.caption)}</div>`
+      })
+
+      if (carouselShowArrows && carouselSlides.length > 1) {
+        carouselContent += `
+        <button type="button" class="carousel-arrow-left" style="${arrowCss} left: 10px;">‹</button>
+        <button type="button" class="carousel-arrow-right" style="${arrowCss} right: 10px;">›</button>`
+      }
+
+      carouselContent += `\n      </div>`
+
+      if (carouselShowIndicators && carouselSlides.length > 1) {
+        carouselContent += `\n      <div style="position: absolute; left: 0; right: 0; bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; z-index: 2;">`
+        carouselContent += carouselSlides.map((slide, index) =>
+          `<span class="carousel-dot" style="width: ${index === 0 ? 20 : 8}px; height: 8px; border-radius: 4px; background-color: rgba(255,255,255,${index === 0 ? 1 : 0.6}); cursor: pointer;"></span>`
+        ).join('')
+        carouselContent += `</div>`
+      }
+
+      // 交互脚本：切换、箭头、指示点、自动播放
+      const carouselScript = `
+(function () {
+  var root = document.querySelector('[data-carousel="${carouselId}"]');
+  if (!root) return;
+  var slides = root.querySelectorAll('.carousel-slide');
+  var captions = root.querySelectorAll('.carousel-caption');
+  var dots = root.querySelectorAll('.carousel-dot');
+  var index = 0;
+  function show(next) {
+    if (!slides.length) return;
+    index = ((next % slides.length) + slides.length) % slides.length;
+    for (var i = 0; i < slides.length; i++) slides[i].style.display = i === index ? 'block' : 'none';
+    for (var c = 0; c < captions.length; c++) captions[c].style.display = c === index ? 'block' : 'none';
+    for (var d = 0; d < dots.length; d++) {
+      dots[d].style.width = d === index ? '20px' : '8px';
+      dots[d].style.backgroundColor = d === index ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.6)';
+    }
+  }
+  var prevBtn = root.querySelector('.carousel-arrow-left');
+  var nextBtn = root.querySelector('.carousel-arrow-right');
+  if (prevBtn) prevBtn.addEventListener('click', function () { show(index - 1); });
+  if (nextBtn) nextBtn.addEventListener('click', function () { show(index + 1); });
+  for (var k = 0; k < dots.length; k++) {
+    (function (n) { dots[n].addEventListener('click', function () { show(n); }); })(k);
+  }${carouselAutoplay ? `
+  setInterval(function () { show(index + 1); }, ${carouselInterval});` : ''}
+})();`
+
+      return {
+        tag: 'div',
+        content: carouselContent,
+        attrs: `data-carousel="${carouselId}"`,
+        script: carouselScript
+      }
+    }
+
     default:
       return {
         tag: 'div',
@@ -1544,6 +1805,33 @@ export async function exportPageWithImages(pageData, filename = 'page') {
         }
       })
     }
+
+    // 处理轮播图组件的本地图片（每行：地址|说明|链接|文件名，地址为 data: 即本地图片）
+    if (comp.type === 'carousel' && comp.props?.images) {
+      String(comp.props.images)
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .forEach((line, slideIndex) => {
+          const parts = line.split('|')
+          const slideUrl = (parts[0] || '').trim()
+          if (!slideUrl.startsWith('data:')) return
+
+          const imageData = extractBase64Image(slideUrl)
+          if (!imageData) return
+
+          const originalName = (parts[3] || '').trim() || `slide_${index}_${slideIndex}`
+          const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
+          const imageFileName = `images/${safeName}.${imageData.extension}`
+
+          localImages.push({
+            filename: imageFileName,
+            data: imageData.data
+          })
+
+          imagePaths[`${comp.id}_slide_${slideIndex}`] = imageFileName
+        })
+    }
   })
 
   // 添加图片到 ZIP
@@ -1577,6 +1865,12 @@ export function hasLocalImages(pageData) {
     // 检查标签页组件
     if (comp.type === 'tabs' && comp.props?.tabImages) {
       return Object.values(comp.props.tabImages).some(img => img.isLocalImage)
+    }
+    // 检查轮播图组件（每行：地址|说明|链接，地址为 data: 即本地图片）
+    if (comp.type === 'carousel' && comp.props?.images) {
+      return String(comp.props.images)
+        .split('\n')
+        .some(line => (line.split('|')[0] || '').trim().startsWith('data:'))
     }
     return false
   })
@@ -2554,6 +2848,223 @@ ${formContent}
 ${padding}</form>`
     }
     
+    // ==================== 内容组件（扩展） ====================
+
+    case 'divider': {
+      const dvStyle = props.lineStyle || 'solid'
+      const dvThickness = Number(props.thickness) || 1
+      const dvColor = props.color || '#e8e8e8'
+      const dvText = props.text || ''
+      const dvTextColor = props.textColor || '#999999'
+      const dvTextSize = Number(props.textSize) || 12
+      const dvGap = Number(props.textGap) || 12
+      const dvLineCss = `border-top: ${dvThickness}px ${dvStyle} ${dvColor}; flex: 1; height: 0; min-width: 0;`
+
+      const dvContent = dvText
+        ? `<span style="${dvLineCss} margin-right: ${dvGap}px;"></span>` +
+          `<span style="color: ${dvTextColor}; font-size: ${dvTextSize}px; white-space: nowrap; flex-shrink: 0;">${escapeHTML(dvText)}</span>` +
+          `<span style="${dvLineCss} margin-left: ${dvGap}px;"></span>`
+        : `<span style="${dvLineCss}"></span>`
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<div style="display: flex; align-items: center; width: 100%; height: 100%; box-sizing: border-box;">${dvContent}</div>
+${padding}</div>`
+    }
+
+    case 'icon': {
+      const icChar = props.icon || '⭐'
+      const icShape = props.shape || 'none'
+      const icShapeColor = props.shapeColor || '#f0f7ff'
+      const icShapeSize = Number(props.shapeSize) || 48
+      const icFontSize = Number(style.fontSize) || 32
+      const icColor = style.color || '#1890ff'
+      const icRadius = icShape === 'circle' ? '50%' : (icShape === 'square' ? '8px' : '0')
+      const icBg = icShape === 'none' ? 'transparent' : icShapeColor
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box;">
+${' '.repeat(indent + 4)}<span style="display: flex; align-items: center; justify-content: center; width: ${icShapeSize}px; height: ${icShapeSize}px; background-color: ${icBg}; border-radius: ${icRadius}; font-size: ${icFontSize}px; color: ${icColor}; line-height: 1; flex-shrink: 0;">${escapeHTML(icChar)}</span>
+${' '.repeat(indent + 2)}</div>
+${padding}</div>`
+    }
+
+    case 'list': {
+      const listItems = String(props.items || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [text, link] = line.split('|')
+          return { text: (text || '').trim(), link: (link || '').trim() }
+        })
+      const listType = props.listType || 'unordered'
+      const listMarker = props.marker || '•'
+      const listMarkerColor = props.markerColor || '#1890ff'
+      const listItemSpacing = Number(props.itemSpacing) || 0
+      const listLinkTarget = props.linkTarget || '_self'
+
+      const listRows = listItems.map((item, index) => {
+        let markerHtml = ''
+        if (listType === 'unordered') {
+          markerHtml = `<span style="color: ${listMarkerColor}; flex-shrink: 0;">${escapeHTML(listMarker)}</span>`
+        } else if (listType === 'ordered') {
+          markerHtml = `<span style="color: ${listMarkerColor}; flex-shrink: 0; min-width: 18px; text-align: right;">${index + 1}.</span>`
+        }
+        const textHtml = item.link
+          ? `<a href="${escapeAttr(item.link)}" target="${escapeAttr(listLinkTarget)}" style="color: inherit; text-decoration: underline;">${escapeHTML(item.text)}</a>`
+          : escapeHTML(item.text)
+        return `${' '.repeat(indent + 2)}<div style="display: flex; align-items: flex-start; gap: 6px; margin-bottom: ${listItemSpacing}px;">${markerHtml}<span style="flex: 1; min-width: 0;">${textHtml}</span></div>`
+      }).join('\n')
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${listRows}
+${padding}</div>`
+    }
+
+    case 'table': {
+      const parseCells = (line) => String(line).split('|').map(cell => cell.trim())
+      const tableHeaders = props.headers ? parseCells(props.headers) : []
+      const tableRows = String(props.rows || '')
+        .split('\n')
+        .filter(line => line.trim())
+        .map(parseCells)
+      const tableShowHeader = props.showHeader !== false
+      const tableHeaderBg = props.headerBackground || '#f5f7fa'
+      const tableHeaderColor = props.headerColor || '#333333'
+      const tableBorderColor = props.borderColor || '#e8e8e8'
+      const tableStriped = props.striped !== false
+      const tableCellPadding = Number(props.cellPadding) || 8
+      const tableCellStyle = `border: 1px solid ${tableBorderColor}; padding: ${tableCellPadding}px; text-align: left;`
+
+      let tableHtml = `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<table style="width: 100%; border-collapse: collapse;">`
+
+      if (tableShowHeader && tableHeaders.length > 0) {
+        tableHtml += `
+${' '.repeat(indent + 4)}<thead>
+${' '.repeat(indent + 6)}<tr>`
+        tableHtml += tableHeaders
+          .map(head => `
+${' '.repeat(indent + 8)}<th style="${tableCellStyle} background-color: ${tableHeaderBg}; color: ${tableHeaderColor}; font-weight: 600;">${escapeHTML(head)}</th>`)
+          .join('')
+        tableHtml += `
+${' '.repeat(indent + 6)}</tr>
+${' '.repeat(indent + 4)}</thead>`
+      }
+
+      tableHtml += `
+${' '.repeat(indent + 4)}<tbody>`
+      tableHtml += tableRows.map((row, rowIndex) => {
+        const rowBg = tableStriped && rowIndex % 2 === 1 ? ` background-color: #fafafa;` : ''
+        const cells = row
+          .map(cell => `
+${' '.repeat(indent + 8)}<td style="${tableCellStyle}${rowBg}">${escapeHTML(cell)}</td>`)
+          .join('')
+        return `
+${' '.repeat(indent + 6)}<tr>${cells}
+${' '.repeat(indent + 6)}</tr>`
+      }).join('')
+      tableHtml += `
+${' '.repeat(indent + 4)}</tbody>
+${' '.repeat(indent + 2)}</table>
+${padding}</div>`
+
+      return tableHtml
+    }
+
+    case 'video': {
+      const videoSrc = props.src || ''
+      const videoIsIframe = props.videoType === 'iframe'
+      const videoPoster = props.poster || ''
+      const videoAutoplay = props.autoplay === true
+      const videoLoop = props.loop === true
+      const videoMuted = props.muted !== false
+      const videoControls = props.controls !== false
+
+      let videoInner = ''
+      if (!videoSrc) {
+        videoInner = `<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: #999999; font-size: 13px;">请填写视频地址</div>`
+      } else if (videoIsIframe) {
+        videoInner = `<iframe src="${escapeAttr(videoSrc)}" style="width: 100%; height: 100%; border: none; display: block;" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`
+      } else {
+        videoInner = `<video src="${escapeAttr(videoSrc)}"` +
+          (videoPoster ? ` poster="${escapeAttr(videoPoster)}"` : '') +
+          (videoControls ? ' controls' : '') +
+          (videoAutoplay ? ' autoplay' : '') +
+          (videoMuted ? ' muted' : '') +
+          (videoLoop ? ' loop' : '') +
+          ` playsinline style="width: 100%; height: 100%; display: block; object-fit: contain; background-color: #000000;"></video>`
+      }
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}${videoInner}
+${padding}</div>`
+    }
+
+    case 'carousel': {
+      const carouselSlides = String(props.images || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [url, caption, link] = line.split('|')
+          return {
+            url: (url || '').trim(),
+            caption: (caption || '').trim(),
+            link: (link || '').trim()
+          }
+        })
+        .filter(slide => slide.url)
+
+      if (carouselSlides.length === 0) {
+        return `${padding}<div class="${className}" :style="{ ${baseStyle} }"></div>`
+      }
+
+      const carouselShowIndicators = props.showIndicators !== false
+      const carouselShowArrows = props.showArrows !== false
+      const carouselLinkTarget = props.linkTarget || '_self'
+      const arrowCss = 'position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border: none; border-radius: 50%; background-color: rgba(0,0,0,0.35); color: #ffffff; font-size: 20px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;'
+
+      // 每张图：支持本地图片路径替换 + 可选超链接
+      const slidesHtml = carouselSlides.map((slide, index) => {
+        const slideImagePath = imagePaths[`${component.id}_slide_${index}`]
+        const slideSrc = slideImagePath || slide.url
+        const slideDisplay = index === 0 ? 'block' : 'none'
+        const imgStyle = 'width: 100%; height: 100%; object-fit: cover; display: block;'
+
+        if (slide.link) {
+          return `\n${' '.repeat(indent + 4)}<a class="carousel-slide" href="${escapeAttr(slide.link)}" target="${escapeAttr(carouselLinkTarget)}" style="position: absolute; inset: 0; display: ${slideDisplay}; text-decoration: none;">` +
+            `\n${' '.repeat(indent + 6)}<img class="carousel-image" src="${escapeAttr(slideSrc)}" alt="${escapeAttr(slide.caption || '')}" style="${imgStyle}" />` +
+            `\n${' '.repeat(indent + 4)}</a>`
+        }
+
+        return `\n${' '.repeat(indent + 4)}<img class="carousel-slide" src="${escapeAttr(slideSrc)}" alt="${escapeAttr(slide.caption || '')}" style="position: absolute; inset: 0; ${imgStyle} display: ${slideDisplay};" />`
+      }).join('')
+
+      const captionsHtml = carouselSlides.map((slide, index) => {
+        if (!slide.caption) return ''
+        return `\n${' '.repeat(indent + 4)}<div class="carousel-caption" style="position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px; background-color: rgba(0,0,0,0.45); color: #ffffff; font-size: 13px; display: ${index === 0 ? 'block' : 'none'};">${escapeHTML(slide.caption)}</div>`
+      }).join('')
+
+      const arrowsHtml = (carouselShowArrows && carouselSlides.length > 1)
+        ? `\n${' '.repeat(indent + 4)}<button type="button" class="carousel-arrow-left" style="${arrowCss} left: 10px;" @click="carouselStep('${className}', -1)">‹</button>` +
+          `\n${' '.repeat(indent + 4)}<button type="button" class="carousel-arrow-right" style="${arrowCss} right: 10px;" @click="carouselStep('${className}', 1)">›</button>`
+        : ''
+
+      const dotsHtml = (carouselShowIndicators && carouselSlides.length > 1)
+        ? `\n${' '.repeat(indent + 2)}<div style="position: absolute; left: 0; right: 0; bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; z-index: 2;">` +
+          carouselSlides.map((slide, index) =>
+            `\n${' '.repeat(indent + 4)}<span class="carousel-dot" style="width: ${index === 0 ? 20 : 8}px; height: 8px; border-radius: 4px; background-color: rgba(255,255,255,${index === 0 ? 1 : 0.6}); cursor: pointer;" @click="carouselShow('${className}', ${index})"></span>`
+          ).join('') +
+          `\n${' '.repeat(indent + 2)}</div>`
+        : ''
+
+      return `${padding}<div class="${className} carousel-widget" :style="{ ${baseStyle} }" data-index="0">
+${' '.repeat(indent + 2)}<div style="position: absolute; inset: 0; overflow: hidden;">${slidesHtml}${captionsHtml}${arrowsHtml}
+${' '.repeat(indent + 2)}</div>${dotsHtml}
+${padding}</div>`
+    }
+
     default:
       return `${padding}<div class="${className}" :style="{ ${baseStyle} }"></div>`
   }
@@ -2607,6 +3118,9 @@ function generateVueScript(components) {
   const datetimeComponents = components.filter(c => c.type === 'datetime')
   const hasDatetime = datetimeComponents.length > 0
   const hasForms = components.some(c => ['loginForm', 'registerForm', 'contactForm', 'searchForm', 'commentForm', 'customForm'].includes(c.type))
+  const carouselComponents = components.filter(c => c.type === 'carousel')
+  const hasCarousel = carouselComponents.length > 0
+  const autoplayCarousels = carouselComponents.filter(c => c.props?.autoplay === true)
   
   let scriptLines = []
 
@@ -2814,6 +3328,41 @@ function generateVueScript(components) {
     scriptLines.push('}')
   }
   
+  if (hasCarousel) {
+    scriptLines.push('')
+    scriptLines.push('// 轮播图：切换到指定帧')
+    scriptLines.push('function carouselShow(widgetClass, index) {')
+    scriptLines.push('  const root = document.querySelector(\'.\' + widgetClass)')
+    scriptLines.push('  if (!root) return')
+    scriptLines.push('  const slides = root.querySelectorAll(\'.carousel-slide\')')
+    scriptLines.push('  if (!slides.length) return')
+    scriptLines.push('  const total = slides.length')
+    scriptLines.push('  const next = ((index % total) + total) % total')
+    scriptLines.push('  root.dataset.index = String(next)')
+    scriptLines.push('  const captions = root.querySelectorAll(\'.carousel-caption\')')
+    scriptLines.push('  const dots = root.querySelectorAll(\'.carousel-dot\')')
+    scriptLines.push('  slides.forEach((el, i) => { el.style.display = i === next ? \'block\' : \'none\' })')
+    scriptLines.push('  captions.forEach((el, i) => { el.style.display = i === next ? \'block\' : \'none\' })')
+    scriptLines.push('  dots.forEach((el, i) => {')
+    scriptLines.push('    el.style.width = i === next ? \'20px\' : \'8px\'')
+    scriptLines.push('    el.style.backgroundColor = i === next ? \'rgba(255,255,255,1)\' : \'rgba(255,255,255,0.6)\'')
+    scriptLines.push('  })')
+    scriptLines.push('}')
+    scriptLines.push('')
+    scriptLines.push('// 轮播图：上一张 / 下一张')
+    scriptLines.push('function carouselStep(widgetClass, delta) {')
+    scriptLines.push('  const root = document.querySelector(\'.\' + widgetClass)')
+    scriptLines.push('  if (!root) return')
+    scriptLines.push('  const current = parseInt(root.dataset.index || \'0\', 10)')
+    scriptLines.push('  carouselShow(widgetClass, current + delta)')
+    scriptLines.push('}')
+    if (autoplayCarousels.length > 0) {
+      scriptLines.push('')
+      scriptLines.push('// 轮播图自动播放定时器')
+      scriptLines.push('const carouselTimers = []')
+    }
+  }
+
   // 生命周期
   scriptLines.push('')
   scriptLines.push('onMounted(() => {')
@@ -2822,6 +3371,12 @@ function generateVueScript(components) {
     scriptLines.push('  updateDatetime()')
     scriptLines.push('  datetimeInterval = setInterval(updateDatetime, 1000)')
   }
+
+  autoplayCarousels.forEach(comp => {
+    const carouselClass = generateComponentId(comp)
+    const carouselInterval = Math.max(500, Number(comp.props?.interval) || 3000)
+    scriptLines.push(`  carouselTimers.push(setInterval(() => carouselStep('${carouselClass}', 1), ${carouselInterval}))`)
+  })
   
   scriptLines.push('})')
   
@@ -2830,6 +3385,10 @@ function generateVueScript(components) {
   
   if (hasDatetime) {
     scriptLines.push('  if (datetimeInterval) clearInterval(datetimeInterval)')
+  }
+
+  if (autoplayCarousels.length > 0) {
+    scriptLines.push('  carouselTimers.forEach(timer => clearInterval(timer))')
   }
   
   scriptLines.push('})')
@@ -2920,6 +3479,33 @@ export async function exportVueWithImages(pageData, filename = 'page') {
           }
         }
       })
+    }
+
+    // 处理轮播图组件的本地图片（每行：地址|说明|链接|文件名，地址为 data: 即本地图片）
+    if (comp.type === 'carousel' && comp.props?.images) {
+      String(comp.props.images)
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .forEach((line, slideIndex) => {
+          const parts = line.split('|')
+          const slideUrl = (parts[0] || '').trim()
+          if (!slideUrl.startsWith('data:')) return
+
+          const imageData = extractBase64Image(slideUrl)
+          if (!imageData) return
+
+          const originalName = (parts[3] || '').trim() || `slide_${index}_${slideIndex}`
+          const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
+          const imageFileName = `images/${safeName}.${imageData.extension}`
+
+          localImages.push({
+            filename: imageFileName,
+            data: imageData.data
+          })
+
+          imagePaths[`${comp.id}_slide_${slideIndex}`] = imageFileName
+        })
     }
   })
   

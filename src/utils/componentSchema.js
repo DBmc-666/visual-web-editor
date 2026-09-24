@@ -17,7 +17,9 @@ export const KNOWN_COMPONENT_TYPES = [
   // 预设表单
   'loginForm', 'registerForm', 'contactForm', 'searchForm', 'commentForm', 'customForm',
   // 导航组件
-  'navMenu', 'breadcrumb', 'tabs'
+  'navMenu', 'breadcrumb', 'tabs',
+  // 内容组件（扩展）
+  'divider', 'icon', 'list', 'table', 'video', 'carousel'
 ]
 
 /**
@@ -224,6 +226,58 @@ export const PROP_FIELDS = {
     activeTab: { type: 'string', desc: '当前激活标签的 key' },
     tabPosition: { type: 'string', desc: '标签位置', enum: ['top', 'bottom', 'left', 'right'] },
     type: { type: 'string', desc: '标签类型', enum: ['line', 'card', 'border-card'] }
+  },
+
+  // ==================== 内容组件（扩展） ====================
+  divider: {
+    lineStyle: { type: 'string', desc: '线条样式', enum: ['solid', 'dashed', 'dotted'] },
+    thickness: { type: 'number', desc: '线宽（px）' },
+    color: { type: 'string', desc: '线条颜色' },
+    text: { type: 'string', desc: '线中间的文字（可留空）' },
+    textColor: { type: 'string', desc: '中间文字颜色' },
+    textSize: { type: 'number', desc: '中间文字大小（px）' },
+    textGap: { type: 'number', desc: '文字与线条之间的留白（px）' }
+  },
+  icon: {
+    icon: { type: 'string', desc: '图标字符（emoji 或符号）' },
+    shape: { type: 'string', desc: '背景形状', enum: ['none', 'circle', 'square'] },
+    shapeColor: { type: 'string', desc: '背景颜色' },
+    shapeSize: { type: 'number', desc: '背景形状尺寸（px）' }
+  },
+  list: {
+    items: { type: 'string', desc: '列表项，每行一项，格式：文字|跳转链接（链接可留空）' },
+    listType: { type: 'string', desc: '列表类型', enum: ['unordered', 'ordered', 'none'] },
+    marker: { type: 'string', desc: '无序列表的标记符号' },
+    markerColor: { type: 'string', desc: '标记颜色' },
+    itemSpacing: { type: 'number', desc: '项间距（px）' },
+    linkTarget: { type: 'string', desc: '列表项链接打开方式', enum: ['_self', '_blank'] }
+  },
+  table: {
+    headers: { type: 'string', desc: '表头，用 | 分隔列' },
+    rows: { type: 'string', desc: '数据行，每行一条，用 | 分隔列' },
+    showHeader: { type: 'boolean', desc: '是否显示表头' },
+    headerBackground: { type: 'string', desc: '表头背景色' },
+    headerColor: { type: 'string', desc: '表头文字颜色' },
+    borderColor: { type: 'string', desc: '边框颜色' },
+    striped: { type: 'boolean', desc: '是否显示斑马纹' },
+    cellPadding: { type: 'number', desc: '单元格内边距（px）' }
+  },
+  video: {
+    src: { type: 'string', desc: '视频直链或 iframe 嵌入地址' },
+    videoType: { type: 'string', desc: '地址类型', enum: ['file', 'iframe'] },
+    poster: { type: 'string', desc: '封面图地址' },
+    autoplay: { type: 'boolean', desc: '是否自动播放' },
+    loop: { type: 'boolean', desc: '是否循环播放' },
+    muted: { type: 'boolean', desc: '是否静音（自动播放需静音）' },
+    controls: { type: 'boolean', desc: '是否显示控制条' }
+  },
+  carousel: {
+    images: { type: 'string', desc: '图片列表，每行一张，格式：图片地址|说明文字|跳转链接（后两项可留空）' },
+    autoplay: { type: 'boolean', desc: '是否自动播放' },
+    interval: { type: 'number', desc: '切换间隔（ms）' },
+    showIndicators: { type: 'boolean', desc: '是否显示指示点' },
+    showArrows: { type: 'boolean', desc: '是否显示左右箭头' },
+    linkTarget: { type: 'string', desc: '图片跳转链接的打开方式', enum: ['_self', '_blank'] }
   }
 }
 

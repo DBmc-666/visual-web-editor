@@ -37,7 +37,14 @@ function getIcon(type) {
     // 导航组件
     navMenu: '导',
     breadcrumb: '屑',
-    tabs: '页'
+    tabs: '页',
+    // 内容组件（扩展）
+    divider: '线',
+    icon: '标',
+    list: '列',
+    table: '表',
+    video: '视',
+    carousel: '播'
   }
   return icons[type] || '○'
 }

@@ -12,6 +12,12 @@ import FormWidget from '../widgets/FormWidget.vue'
 import NavMenuWidget from '../widgets/NavMenuWidget.vue'
 import BreadcrumbWidget from '../widgets/BreadcrumbWidget.vue'
 import TabsWidget from '../widgets/TabsWidget.vue'
+import DividerWidget from '../widgets/DividerWidget.vue'
+import IconWidget from '../widgets/IconWidget.vue'
+import ListWidget from '../widgets/ListWidget.vue'
+import TableWidget from '../widgets/TableWidget.vue'
+import VideoWidget from '../widgets/VideoWidget.vue'
+import CarouselWidget from '../widgets/CarouselWidget.vue'
 
 const props = defineProps({
   component: {
@@ -27,6 +33,7 @@ const props = defineProps({
 const { 
   selectComponent, 
   selectComponents,
+  selectComponentWithChildren,
   moveComponent, 
   moveComponents,
   getChildrenInsideComponent,
@@ -159,7 +166,14 @@ const widgetMap = {
   // 导航组件
   navMenu: NavMenuWidget,
   breadcrumb: BreadcrumbWidget,
-  tabs: TabsWidget
+  tabs: TabsWidget,
+  // 内容组件（扩展）
+  divider: DividerWidget,
+  icon: IconWidget,
+  list: ListWidget,
+  table: TableWidget,
+  video: VideoWidget,
+  carousel: CarouselWidget
 }
 
 // 当前组件的 Widget
@@ -175,6 +189,19 @@ const originalLeft = ref(0)
 const originalTop = ref(0)
 const originalPositions = ref({})
 const isCtrlDragging = ref(false) // 记录是否按Ctrl拖拽
+
+// 选中组件及其内部包含的所有组件（与画布单击容器的行为一致）
+// 这里对 store 的组合动作做一次存在性回退：热更新不同步时（组件实例已更新但 store 模块未同步，
+// 或反之）直接调用会抛异常，导致选中与拖拽同时失效，回退到基础 API 可保证功能可用
+function selectWithChildren(id) {
+  if (typeof selectComponentWithChildren === 'function') {
+    selectComponentWithChildren(id)
+    return
+  }
+  console.warn('[CanvasItem] selectComponentWithChildren 不可用，已回退到基础 API；如持续出现请刷新页面')
+  const children = getChildrenInsideComponent(id)
+  selectComponents([id, ...children.map(c => c.id)])
+}
 
 // 开始拖拽
 function handleMouseDown(event) {
@@ -206,23 +233,15 @@ function handleMouseDown(event) {
       [props.component.id]: { left: props.component.left, top: props.component.top }
     }
   } else {
-    // 正常情况：选择组件及其子组件
-    selectComponent(props.component.id, false)
+    // 正常情况：选中组件及其内部包含的组件（与单击行为一致）
+    selectWithChildren(props.component.id)
     const children = getChildrenInsideComponent(props.component.id)
-    if (children.length > 0) {
-      const allChildren = children.map(c => c.id)
-      const allIds = [props.component.id, ...allChildren]
-      selectComponents(allIds)
-      originalPositions.value = {}
-      allIds.forEach(id => {
-        const comp = children.find(c => c.id === id) || props.component
-        originalPositions.value[id] = { left: comp.left, top: comp.top }
-      })
-    } else {
-      originalPositions.value = {
-        [props.component.id]: { left: props.component.left, top: props.component.top }
-      }
-    }
+    const allIds = [props.component.id, ...children.map(c => c.id)]
+    originalPositions.value = {}
+    allIds.forEach(id => {
+      const comp = children.find(c => c.id === id) || props.component
+      originalPositions.value[id] = { left: comp.left, top: comp.top }
+    })
   }
 
   saveMoveHistory()
@@ -286,12 +305,9 @@ function handleClick(event) {
   const multiSelect = event.ctrlKey || event.metaKey
   
   if (!multiSelect) {
-    const children = getChildrenInsideComponent(props.component.id)
-    if (children.length > 0) {
-      const allIds = [props.component.id, ...children.map(c => c.id)]
-      selectComponents(allIds)
-      return
-    }
+    // 选中组件及其内部包含的所有组件（与画布单击容器的行为一致）
+    selectWithChildren(props.component.id)
+    return
   }
   
   selectComponent(props.component.id, multiSelect)

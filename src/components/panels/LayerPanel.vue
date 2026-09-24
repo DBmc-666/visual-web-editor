@@ -8,6 +8,7 @@ const {
   selectedIds,
   selectedId,
   selectComponent,
+  selectComponentWithChildren,
   toggleComponentVisible,
   toggleComponentLocked,
   renameComponent,
@@ -34,7 +35,13 @@ const TYPE_ICONS = {
   customForm: '单',
   navMenu: '导',
   breadcrumb: '面',
-  tabs: '签'
+  tabs: '签',
+  divider: '线',
+  icon: '标',
+  list: '列',
+  table: '表',
+  video: '视',
+  carousel: '播'
 }
 
 // 排序模式：'position' 按页面位置（从上往下、从大往小）| 'stack' 按叠放层级（最上层在前）
@@ -109,6 +116,14 @@ function isSelected(id) {
 function handleRowClick(event, id) {
   // Ctrl / Cmd 点击 = 多选
   selectComponent(id, event.ctrlKey || event.metaKey)
+}
+
+/**
+ * 双击图层行：连同「它身上（内部包含）的所有组件」一起选中
+ * 与在画布上单击容器的行为一致，便于整体移动 / 对齐 / 微调
+ */
+function handleRowDoubleClick(id) {
+  selectComponentWithChildren(id)
 }
 
 // ---------------- 重命名 ----------------
@@ -252,6 +267,7 @@ function handleDelete(id) {
         @dragover="handleDragOver($event, row)"
         @drop="handleDrop"
         @click="handleRowClick($event, row.node.comp.id)"
+        @dblclick.stop="handleRowDoubleClick(row.node.comp.id)"
         @mouseenter="setHoveredId(row.node.comp.id)"
         @mouseleave="setHoveredId(null)"
       >
@@ -269,7 +285,6 @@ function handleDelete(id) {
           class="drag-grip"
           title="拖拽调整同级叠放顺序"
         >⋮⋮</span>
-        <span v-else class="drag-grip-placeholder"></span>
         <span class="layer-icon">{{ TYPE_ICONS[row.node.comp.type] || '□' }}</span>
 
         <input
@@ -278,6 +293,7 @@ function handleDelete(id) {
           v-model="editingName"
           class="layer-name-input"
           @click.stop
+          @dblclick.stop
           @keydown.enter="finishRename"
           @keydown.esc="editingId = null"
           @blur="finishRename"
@@ -285,15 +301,16 @@ function handleDelete(id) {
         <span
           v-else
           class="layer-name"
-          :title="`${row.node.comp.name || row.node.comp.type}（双击重命名）`"
-          @dblclick.stop="startRename(row.node.comp)"
+          :title="`${row.node.comp.name || row.node.comp.type}（双击可连同内部组件一起选中）`"
         >{{ row.node.comp.name || row.node.comp.type }}</span>
 
         <span v-if="row.childCount" class="child-count" :title="`包含 ${row.childCount} 个子组件`">
           {{ row.childCount }}
         </span>
 
-        <span class="layer-z" :title="`层级 ${row.node.comp.zIndex}`">{{ row.node.comp.zIndex }}</span>
+        <span v-if="sortMode === 'stack'" class="layer-z" :title="`层级 ${row.node.comp.zIndex}`">
+          {{ row.node.comp.zIndex }}
+        </span>
 
         <button
           class="layer-btn"
@@ -306,6 +323,12 @@ function handleDelete(id) {
           :title="row.node.comp.locked ? '解锁' : '锁定'"
           @click.stop="toggleComponentLocked(row.node.comp.id)"
         >{{ row.node.comp.locked ? '🔒' : '🔓' }}</button>
+
+        <button
+          class="layer-btn"
+          title="重命名"
+          @click.stop="startRename(row.node.comp)"
+        >✎</button>
 
         <button class="layer-btn danger" title="删除" @click.stop="handleDelete(row.node.comp.id)">✕</button>
       </div>
@@ -320,12 +343,12 @@ function handleDelete(id) {
       </div>
       <div class="layer-tip">
         <template v-if="sortMode === 'position'">
-          列表按页面位置排列：从上往下、大块在前，子元素缩进跟随。<br>
-          调整叠放顺序请用上方按钮，或切到「按层级」模式拖拽。
+          单击选中单个组件，<b>双击连同它内部的组件一起选中</b>（同画布上单击容器）。<br>
+          列表按页面位置排列；调整叠放顺序请用上方按钮，或切到「按层级」模式拖拽。
         </template>
         <template v-else>
-          列表按叠放层级排列：最上层在前。<br>
-          拖拽仅在同级之间调整顺序；把组件移出容器范围即可脱离分组。
+          单击选中单个组件，<b>双击连同它内部的组件一起选中</b>。<br>
+          拖拽仅在同级之间调整叠放顺序；把组件移出容器范围即可脱离分组。
         </template>
       </div>
     </div>
@@ -483,11 +506,6 @@ function handleDelete(id) {
   color: #bbb;
   cursor: grab;
   letter-spacing: -2px;
-}
-
-.drag-grip-placeholder {
-  flex-shrink: 0;
-  width: 14px;
 }
 
 .layer-icon {

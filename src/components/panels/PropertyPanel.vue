@@ -287,6 +287,9 @@ function fallbackCopy(text) {
 // 图片文件选择
 const imageFileInput = ref(null)
 
+// 轮播图每张图片的隐藏文件输入（按索引保存 DOM 引用）
+const carouselFileInputs = ref({})
+
 // 选择本地图片
 function handleImageSelect(event) {
   const file = event.target.files[0]
@@ -534,7 +537,84 @@ const componentPropsFields = {
     { key: 'tabPosition', label: '标签位置', type: 'select', options: ['top', 'bottom', 'left', 'right'] },
     { key: 'type', label: '标签类型', type: 'select', options: ['line', 'card', 'border-card'] }
   ],
-  
+
+  // ==================== 内容组件（扩展） ====================
+
+  divider: [
+    { key: 'lineStyle', label: '线条样式', type: 'select', options: [
+      { value: 'solid', label: '实线' },
+      { value: 'dashed', label: '虚线' },
+      { value: 'dotted', label: '点线' }
+    ]},
+    { key: 'thickness', label: '线宽(px)', type: 'number', min: 1, max: 20 },
+    { key: 'color', label: '线条颜色', type: 'color' },
+    { key: 'text', label: '中间文字', type: 'text' },
+    { key: 'textColor', label: '文字颜色', type: 'color' },
+    { key: 'textSize', label: '文字大小(px)', type: 'number', min: 10, max: 30 },
+    { key: 'textGap', label: '文字两侧留白', type: 'number', min: 0, max: 60 }
+  ],
+
+  icon: [
+    { key: 'icon', label: '图标字符', type: 'text' },
+    { key: 'shape', label: '背景形状', type: 'select', options: [
+      { value: 'none', label: '无背景' },
+      { value: 'circle', label: '圆形' },
+      { value: 'square', label: '圆角方形' }
+    ]},
+    { key: 'shapeColor', label: '背景颜色', type: 'color' },
+    { key: 'shapeSize', label: '背景尺寸(px)', type: 'number', min: 16, max: 200 }
+  ],
+
+  // 列表项与跳转链接在下方「列表项配置」中逐项编辑
+  list: [
+    { key: 'listType', label: '列表类型', type: 'select', options: [
+      { value: 'unordered', label: '无序列表' },
+      { value: 'ordered', label: '有序列表' },
+      { value: 'none', label: '无标记' }
+    ]},
+    { key: 'marker', label: '标记符号', type: 'text', showIf: { listType: 'unordered' } },
+    { key: 'markerColor', label: '标记颜色', type: 'color' },
+    { key: 'itemSpacing', label: '项间距(px)', type: 'number', min: 0, max: 40 },
+    { key: 'linkTarget', label: '链接打开方式', type: 'select', options: [
+      { value: '_self', label: '当前窗口' },
+      { value: '_blank', label: '新窗口' }
+    ]}
+  ],
+
+  // 表头与数据行在下方「表格内容配置」中逐项编辑
+  table: [
+    { key: 'showHeader', label: '显示表头', type: 'checkbox' },
+    { key: 'headerBackground', label: '表头背景', type: 'color' },
+    { key: 'headerColor', label: '表头文字色', type: 'color' },
+    { key: 'borderColor', label: '边框颜色', type: 'color' },
+    { key: 'striped', label: '斑马纹', type: 'checkbox' },
+    { key: 'cellPadding', label: '单元格内边距', type: 'number', min: 2, max: 30 }
+  ],
+
+  video: [
+    { key: 'src', label: '视频地址', type: 'text' },
+    { key: 'videoType', label: '地址类型', type: 'select', options: [
+      { value: 'file', label: '视频直链（mp4 等）' },
+      { value: 'iframe', label: 'iframe 嵌入地址' }
+    ]},
+    { key: 'poster', label: '封面图地址', type: 'text', showIf: { videoType: 'file' } },
+    { key: 'controls', label: '显示控制条', type: 'checkbox', showIf: { videoType: 'file' } },
+    { key: 'autoplay', label: '自动播放', type: 'checkbox', showIf: { videoType: 'file' } },
+    { key: 'muted', label: '静音（自动播放需静音）', type: 'checkbox', showIf: { videoType: 'file' } },
+    { key: 'loop', label: '循环播放', type: 'checkbox', showIf: { videoType: 'file' } }
+  ],
+
+  // 图片与跳转链接在下方「图片与跳转配置」中逐项编辑
+  carousel: [
+    { key: 'autoplay', label: '自动播放（预览时生效）', type: 'checkbox' },
+    { key: 'interval', label: '切换间隔(ms)', type: 'number', min: 500, max: 20000, showIf: { autoplay: true } },
+    { key: 'showIndicators', label: '显示指示点', type: 'checkbox' },
+    { key: 'showArrows', label: '显示左右箭头', type: 'checkbox' },
+    { key: 'linkTarget', label: '链接打开方式', type: 'select', options: [
+      { value: '_self', label: '当前窗口' },
+      { value: '_blank', label: '新窗口' }
+    ]}
+  ]
 }
 
 // 当前组件的特有属性
@@ -1043,6 +1123,205 @@ function clearTabsImage(index) {
       updateComponentProps(selectedId.value, { tabImages })
     }
   }
+}
+
+// ==================== 轮播图逐项编辑 ====================
+
+// 解析轮播图（每行：图片地址|说明文字|跳转链接|本地文件名）
+function getCarouselSlides() {
+  if (!selectedComponent.value) return []
+  const str = selectedComponent.value.props?.images || ''
+  return str
+    .split('\n')
+    .filter(line => line.trim())
+    .map((line, index) => {
+      const [url, caption, link, fileName] = line.split('|')
+      return {
+        id: `slide_${index}`,
+        url: (url || '').trim(),
+        caption: (caption || '').trim(),
+        link: (link || '').trim(),
+        fileName: (fileName || '').trim()
+      }
+    })
+}
+
+function serializeCarouselSlides(slides) {
+  return slides.map(s => `${s.url}|${s.caption}|${s.link}|${s.fileName || ''}`).join('\n')
+}
+
+function updateCarouselSlide(index, field, value) {
+  if (!selectedId.value) return
+  const slides = getCarouselSlides()
+  if (!slides[index]) return
+  slides[index][field] = value
+  updateComponentProps(selectedId.value, { images: serializeCarouselSlides(slides) })
+}
+
+function addCarouselSlide() {
+  if (!selectedId.value) return
+  const slides = getCarouselSlides()
+  const next = slides.length + 1
+  slides.push({
+    url: `https://picsum.photos/seed/slide${next}/600/300`,
+    caption: `第 ${next} 张幻灯片`,
+    link: '',
+    fileName: ''
+  })
+  updateComponentProps(selectedId.value, { images: serializeCarouselSlides(slides) })
+}
+
+function removeCarouselSlide(index) {
+  if (!selectedId.value) return
+  const slides = getCarouselSlides()
+  slides.splice(index, 1)
+  updateComponentProps(selectedId.value, { images: serializeCarouselSlides(slides) })
+}
+
+// 为某一张选择本地图片（导出时会一起打包进 ZIP）
+function handleCarouselImageSelect(index, event) {
+  const file = event.target.files?.[0]
+  if (!file || !selectedId.value) return
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const slides = getCarouselSlides()
+    if (!slides[index]) return
+    slides[index].url = e.target.result
+    slides[index].fileName = file.name
+    updateComponentProps(selectedId.value, { images: serializeCarouselSlides(slides) })
+  }
+  reader.readAsDataURL(file)
+
+  event.target.value = ''
+}
+
+function clearCarouselImage(index) {
+  if (!selectedId.value) return
+  const slides = getCarouselSlides()
+  if (!slides[index]) return
+  slides[index].url = ''
+  slides[index].fileName = ''
+  updateComponentProps(selectedId.value, { images: serializeCarouselSlides(slides) })
+}
+
+// ==================== 列表逐项编辑 ====================
+
+// 解析列表（每行：文字|跳转链接）
+function getListItems() {
+  if (!selectedComponent.value) return []
+  const str = selectedComponent.value.props?.items || ''
+  return str
+    .split('\n')
+    .filter(line => line.trim())
+    .map((line, index) => {
+      const [text, link] = line.split('|')
+      return {
+        id: `list_item_${index}`,
+        text: (text || '').trim(),
+        link: (link || '').trim()
+      }
+    })
+}
+
+function serializeListItems(items) {
+  return items.map(item => `${item.text}|${item.link}`).join('\n')
+}
+
+function updateListItem(index, field, value) {
+  if (!selectedId.value) return
+  const items = getListItems()
+  if (!items[index]) return
+  items[index][field] = value
+  updateComponentProps(selectedId.value, { items: serializeListItems(items) })
+}
+
+function addListItem() {
+  if (!selectedId.value) return
+  const items = getListItems()
+  items.push({ text: `第 ${items.length + 1} 项`, link: '' })
+  updateComponentProps(selectedId.value, { items: serializeListItems(items) })
+}
+
+function removeListItem(index) {
+  if (!selectedId.value) return
+  const items = getListItems()
+  items.splice(index, 1)
+  updateComponentProps(selectedId.value, { items: serializeListItems(items) })
+}
+
+// ==================== 表格逐项编辑 ====================
+
+function getTableHeaders() {
+  if (!selectedComponent.value) return []
+  const str = selectedComponent.value.props?.headers || ''
+  return str ? str.split('|').map(h => h.trim()) : []
+}
+
+function getTableRows() {
+  if (!selectedComponent.value) return []
+  const str = selectedComponent.value.props?.rows || ''
+  return str
+    .split('\n')
+    .filter(line => line.trim())
+    .map(line => line.split('|').map(cell => cell.trim()))
+}
+
+function serializeTable(headers, rows) {
+  return {
+    headers: headers.join('|'),
+    rows: rows.map(row => row.join('|')).join('\n')
+  }
+}
+
+function updateTableHeader(index, value) {
+  if (!selectedId.value) return
+  const headers = getTableHeaders()
+  if (index >= headers.length) return
+  headers[index] = value
+  updateComponentProps(selectedId.value, serializeTable(headers, getTableRows()))
+}
+
+function addTableColumn() {
+  if (!selectedId.value) return
+  const headers = getTableHeaders()
+  const rows = getTableRows()
+  headers.push(`列${headers.length + 1}`)
+  rows.forEach(row => row.push(''))
+  updateComponentProps(selectedId.value, serializeTable(headers, rows))
+}
+
+function removeTableColumn(index) {
+  if (!selectedId.value) return
+  const headers = getTableHeaders()
+  const rows = getTableRows()
+  headers.splice(index, 1)
+  rows.forEach(row => row.splice(index, 1))
+  updateComponentProps(selectedId.value, serializeTable(headers, rows))
+}
+
+function updateTableCell(rowIndex, cellIndex, value) {
+  if (!selectedId.value) return
+  const rows = getTableRows()
+  if (!rows[rowIndex]) return
+  rows[rowIndex][cellIndex] = value
+  updateComponentProps(selectedId.value, serializeTable(getTableHeaders(), rows))
+}
+
+function addTableRow() {
+  if (!selectedId.value) return
+  const headers = getTableHeaders()
+  const rows = getTableRows()
+  const columnCount = headers.length || (rows[0]?.length || 3)
+  rows.push(new Array(columnCount).fill(''))
+  updateComponentProps(selectedId.value, serializeTable(headers, rows))
+}
+
+function removeTableRow(index) {
+  if (!selectedId.value) return
+  const rows = getTableRows()
+  rows.splice(index, 1)
+  updateComponentProps(selectedId.value, serializeTable(getTableHeaders(), rows))
 }
 
 // ==================== 后端代码生成 ====================
@@ -1599,6 +1878,8 @@ const shadowCSS = computed(() => {
             </select>
             <textarea v-else-if="field.type === 'textarea'" class="input textarea" :value="getPropsValue(field.key)" @input="updateProps(field.key, $event.target.value)" rows="3"></textarea>
             <input v-else-if="field.type === 'text'" type="text" class="input" :value="field.key === 'items' ? (selectedComponent.props?.[field.key] || []).join(', ') : getPropsValue(field.key)" @input="updateProps(field.key, $event.target.value)" />
+            <input v-else-if="field.type === 'number'" type="number" class="input" :value="getPropsValue(field.key)" :min="field.min" :max="field.max" @input="$event.target.value !== '' && updateProps(field.key, parseFloat($event.target.value))" />
+            <input v-else-if="field.type === 'color'" type="color" class="input-color" :value="getPropsValue(field.key) || '#000000'" @input="updateProps(field.key, $event.target.value)" />
             <input v-else-if="field.type === 'checkbox'" type="checkbox" class="input-checkbox" :checked="getPropsValue(field.key)" @change="updateProps(field.key, $event.target.checked)" />
           </div>
 
@@ -1780,6 +2061,133 @@ const shadowCSS = computed(() => {
             </div>
           </div>
           <button class="btn-add-item" @click="addTabsItem">+ 添加标签页</button>
+        </div>
+      </div>
+
+      <!-- 轮播图配置（每张图片独立一组） -->
+      <div v-if="selectedComponent.type === 'carousel'" class="property-section">
+        <h4 class="section-title">🖼 图片与跳转配置</h4>
+        <div class="custom-form-items">
+          <div v-for="(item, index) in getCarouselSlides()" :key="item.id" class="form-item-editor">
+            <div class="form-item-header">
+              <span>第 {{ index + 1 }} 张</span>
+              <button class="btn-remove-item" @click="removeCarouselSlide(index)">删除</button>
+            </div>
+            <div class="form-item-fields">
+              <div class="slide-preview-row">
+                <img v-if="item.url" :src="item.url" class="slide-thumb" alt="预览" />
+                <div v-else class="slide-thumb slide-thumb-empty">无图</div>
+                <div class="slide-image-actions">
+                  <input
+                    :ref="el => { if (el) carouselFileInputs[index] = el }"
+                    type="file"
+                    accept="image/*"
+                    style="display: none"
+                    @change="handleCarouselImageSelect(index, $event)"
+                  />
+                  <button class="btn-upload-small" @click="carouselFileInputs[index]?.click()">📁 本地图片</button>
+                  <button v-if="item.fileName || item.url.startsWith('data:')" class="btn-clear-small" @click="clearCarouselImage(index)">✖ 清除</button>
+                  <span v-if="item.fileName" class="slide-file-name" :title="item.fileName">{{ item.fileName }}</span>
+                </div>
+              </div>
+              <input
+                type="text"
+                :value="item.url.startsWith('data:') ? '' : item.url"
+                class="input"
+                :placeholder="item.url.startsWith('data:') ? '（已使用本地图片，导出时会一起打包）' : '图片地址，如 https://.../a.jpg'"
+                @input="(e) => updateCarouselSlide(index, 'url', e.target.value)"
+              />
+              <input
+                type="text"
+                :value="item.caption"
+                class="input"
+                placeholder="说明文字（可留空）"
+                @input="(e) => updateCarouselSlide(index, 'caption', e.target.value)"
+              />
+              <input
+                type="text"
+                :value="item.link"
+                class="input"
+                placeholder="跳转链接（留空则不跳转），如 https://example.com"
+                @input="(e) => updateCarouselSlide(index, 'link', e.target.value)"
+              />
+            </div>
+          </div>
+          <button class="btn-add-item" @click="addCarouselSlide">+ 添加图片</button>
+        </div>
+      </div>
+
+      <!-- 列表配置（每项独立一组） -->
+      <div v-if="selectedComponent.type === 'list'" class="property-section">
+        <h4 class="section-title">📋 列表项配置</h4>
+        <div class="custom-form-items">
+          <div v-for="(item, index) in getListItems()" :key="item.id" class="form-item-editor">
+            <div class="form-item-header">
+              <span>第 {{ index + 1 }} 项</span>
+              <button class="btn-remove-item" @click="removeListItem(index)">删除</button>
+            </div>
+            <div class="form-item-fields">
+              <input
+                type="text"
+                :value="item.text"
+                class="input"
+                placeholder="文字内容"
+                @input="(e) => updateListItem(index, 'text', e.target.value)"
+              />
+              <input
+                type="text"
+                :value="item.link"
+                class="input"
+                placeholder="跳转链接（留空则不跳转），如 #about 或 https://example.com"
+                @input="(e) => updateListItem(index, 'link', e.target.value)"
+              />
+            </div>
+          </div>
+          <button class="btn-add-item" @click="addListItem">+ 添加列表项</button>
+        </div>
+      </div>
+
+      <!-- 表格配置（表头与数据行逐项编辑） -->
+      <div v-if="selectedComponent.type === 'table'" class="property-section">
+        <h4 class="section-title">📊 表格内容配置</h4>
+        <div class="custom-form-items">
+          <div class="form-item-editor">
+            <div class="form-item-header">
+              <span>表头（{{ getTableHeaders().length }} 列）</span>
+              <button class="btn-remove-item" @click="addTableColumn">+ 加列</button>
+            </div>
+            <div class="form-item-fields">
+              <div v-for="(head, index) in getTableHeaders()" :key="`h${index}`" class="table-cell-row">
+                <input
+                  type="text"
+                  :value="head"
+                  class="input"
+                  :placeholder="`第 ${index + 1} 列标题`"
+                  @input="(e) => updateTableHeader(index, e.target.value)"
+                />
+                <button class="btn-remove-item" title="删除该列" @click="removeTableColumn(index)">✖</button>
+              </div>
+            </div>
+          </div>
+
+          <div v-for="(row, rowIndex) in getTableRows()" :key="`r${rowIndex}`" class="form-item-editor">
+            <div class="form-item-header">
+              <span>第 {{ rowIndex + 1 }} 行</span>
+              <button class="btn-remove-item" @click="removeTableRow(rowIndex)">删除</button>
+            </div>
+            <div class="form-item-fields">
+              <div v-for="(cell, cellIndex) in row" :key="`c${cellIndex}`" class="table-cell-row">
+                <input
+                  type="text"
+                  :value="cell"
+                  class="input"
+                  :placeholder="getTableHeaders()[cellIndex] || `第 ${cellIndex + 1} 列`"
+                  @input="(e) => updateTableCell(rowIndex, cellIndex, e.target.value)"
+                />
+              </div>
+            </div>
+          </div>
+          <button class="btn-add-item" @click="addTableRow">+ 添加数据行</button>
         </div>
       </div>
 
@@ -2226,6 +2634,89 @@ const shadowCSS = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* 轮播图逐项编辑：缩略图 + 本地图片按钮 */
+.slide-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slide-thumb {
+  width: 64px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background-color: var(--color-bg);
+}
+
+.slide-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.slide-image-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.btn-upload-small,
+.btn-clear-small {
+  padding: 3px 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background-color: var(--color-bg-white);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-upload-small:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background-color: #e6f7ff;
+}
+
+.btn-clear-small:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background-color: #fff2f0;
+}
+
+.slide-file-name {
+  font-size: 11px;
+  color: var(--color-success);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 表格逐项编辑：单元格一行（输入框 + 删除按钮） */
+.table-cell-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.table-cell-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.table-cell-row .btn-remove-item {
+  flex-shrink: 0;
 }
 
 .checkbox-label {
