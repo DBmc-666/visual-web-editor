@@ -224,6 +224,158 @@ export default async function run(t) {
   t.check('parentIds 记录了父子关系', tree.parentIds.get('inner1') === 'box' && tree.parentIds.get('inner2') === 'box',
     JSON.stringify([...tree.parentIds.entries()]))
 
+  // ==================== 结构性操作可撤销 ====================
+  t.group('结构性操作撤销（项目级快照）')
+
+  const structCanvas = ed.addCanvas('结构撤销测试')
+  ed.switchCanvas(structCanvas.id)
+  ed.clearHistory()
+
+  // 新建页面 → 撤销 → 重做
+  const beforePages = ed.pages.value.length
+  const addedPage = ed.addPage('新增页')
+  t.equal('新建页面后页面数 +1', ed.pages.value.length, beforePages + 1)
+  ed.undo()
+  t.equal('撤销新建页面', ed.pages.value.length, beforePages)
+  ed.redo()
+  t.equal('重做恢复新建页面', ed.pages.value.length, beforePages + 1)
+
+  // 删除页面 → 撤销（内容应完整恢复）
+  ed.clearHistory()
+  const pageToDelete = ed.pages.value.find(p => p.id === addedPage.id)
+  ed.switchPage(pageToDelete.id)
+  ed.addComponent('text')
+  const deletedPageComponentCount = ed.page.value.components.length
+  t.check('被删页面有内容', deletedPageComponentCount > 0, String(deletedPageComponentCount))
+
+  ed.removePage(pageToDelete.id)
+  t.check('删除页面生效', !ed.pages.value.some(p => p.id === pageToDelete.id))
+  ed.undo()
+  const restored = ed.pages.value.find(p => p.id === pageToDelete.id)
+  t.check('撤销删除页面（页面回来了）', !!restored)
+  t.equal('撤销后页面内容完整恢复', restored?.components.length, deletedPageComponentCount)
+
+  // 应用整站 → 撤销
+  ed.clearHistory()
+  const pagesBeforeSite = ed.pages.value.length
+  ed.applySitePages([
+    makePage({ name: 'AI页1', components: [makeComponent('text')] }),
+    makePage({ name: 'AI页2', components: [makeComponent('text')] })
+  ], { replace: false })
+  t.equal('应用整站后页面数 +2', ed.pages.value.length, pagesBeforeSite + 2)
+  ed.undo()
+  t.equal('撤销应用整站', ed.pages.value.length, pagesBeforeSite)
+  t.check('撤销后 AI 页面已移除', !ed.pages.value.some(p => p.name === 'AI页1'))
+
+  // 替换模式 → 撤销（原页面应回来）
+  ed.clearHistory()
+  const originalNames = ed.pages.value.map(p => p.name)
+  ed.applySitePages([makePage({ name: '替换页', components: [makeComponent('text')] })], { replace: true })
+  t.equal('替换后只剩 1 页', ed.pages.value.length, 1)
+  ed.undo()
+  t.equal('撤销替换恢复原页面数', ed.pages.value.length, originalNames.length)
+  t.check('撤销替换恢复原页面名', ed.pages.value.map(p => p.name).join(',') === originalNames.join(','),
+    ed.pages.value.map(p => p.name).join(','))
+
+  // 删除画布 → 撤销
+  ed.clearHistory()
+  const canvasCountBefore = ed.canvases.value.length
+  ed.removeCanvas(structCanvas.id)
+  t.equal('删除画布生效', ed.canvases.value.length, canvasCountBefore - 1)
+  ed.undo()
+  t.equal('撤销删除画布', ed.canvases.value.length, canvasCountBefore)
+
+  // 跨页面编辑的撤销：应自动切回被编辑的页面
+  ed.clearHistory()
+  const crossCanvas = ed.addCanvas('跨页撤销')
+  ed.switchCanvas(crossCanvas.id)
+  const pageA = ed.pages.value[0]
+  const pageB = ed.addPage('页面B')
+  ed.clearHistory()
+
+  ed.switchPage(pageA.id)
+  ed.addComponent('text')
+  const pageACompCount = ed.page.value.components.length
+
+  ed.switchPage(pageB.id)
+  ed.addComponent('button')
+  const pageBCompCount = ed.page.value.components.length
+
+  ed.undo() // 撤销 B 上的操作
+  t.check('撤销后停留在 B 且 B 已回退',
+    ed.activePageId.value === pageB.id && ed.page.value.components.length === pageBCompCount - 1,
+    `page=${ed.page.value.name} count=${ed.page.value.components.length}`)
+
+  ed.undo() // 撤销 A 上的操作（应自动切回 A）
+  t.check('撤销跨页面操作时自动切回目标页面', ed.activePageId.value === pageA.id,
+    `当前页=${ed.page.value.name}`)
+  t.equal('A 页面的操作已回退', ed.page.value.components.length, pageACompCount - 1)
+
+  // ==================== 历史版本快照 ====================
+  t.group('历史版本快照')
+
+  const versionCanvas = ed.addCanvas('版本测试')
+  ed.switchCanvas(versionCanvas.id)
+  ed.page.value.components = [makeComponent('text', { props: { content: '版本1内容' } })]
+  ed.clearVersionSnapshots()
+
+  const saved = ed.saveVersionSnapshot('我的第一个版本')
+  t.check('保存版本成功', saved.ok === true && !!saved.item, JSON.stringify(saved))
+  t.equal('版本名保留', saved.item.name, '我的第一个版本')
+
+  let versions = ed.listVersionSnapshots()
+  t.equal('列表包含 1 个版本', versions.length, 1)
+  t.check('列表带规模统计（快照含整个项目）',
+    versions[0].stats.canvasCount >= 1 && versions[0].stats.pageCount >= 1 && versions[0].stats.componentCount >= 1,
+    JSON.stringify(versions[0].stats))
+
+  // 改动项目后再恢复
+  ed.page.value.components = [
+    makeComponent('text', { props: { content: '版本1内容' } }),
+    makeComponent('button', { props: { content: '新增的按钮' } })
+  ]
+  ed.renamePage(ed.page.value.id, '改过的页面名')
+  t.equal('改动后组件数 2', ed.page.value.components.length, 2)
+
+  const restoreResult = ed.restoreVersionSnapshot(saved.item.id)
+  t.check('恢复版本成功', restoreResult.ok === true, JSON.stringify(restoreResult))
+  t.equal('恢复后组件数回到 1', ed.page.value.components.length, 1)
+  t.equal('恢复后页面名回到保存时', ed.page.value.name, '首页')
+  t.check('恢复后可 Ctrl+Z 退回', ed.canUndo() === true)
+
+  ed.undo()
+  t.equal('撤销恢复后组件数又变回 2', ed.page.value.components.length, 2)
+
+  // 重命名 / 删除
+  t.check('重命名版本成功', ed.renameVersionSnapshot(saved.item.id, '改名后的版本') === true)
+  t.equal('重命名生效', ed.listVersionSnapshots()[0].name, '改名后的版本')
+
+  t.check('删除版本成功', ed.removeVersionSnapshot(saved.item.id) === true)
+  t.equal('删除后列表为空', ed.listVersionSnapshots().length, 0)
+
+  // 数量上限：最多保留 20 个
+  ed.clearVersionSnapshots()
+  for (let i = 0; i < 23; i++) {
+    ed.saveVersionSnapshot(`版本${i + 1}`)
+  }
+  const capped = ed.listVersionSnapshots()
+  t.equal('超出上限后只保留 20 个', capped.length, 20)
+  t.check('保留的是最新的（丢弃最旧的）',
+    capped.some(v => v.name === '版本23') && !capped.some(v => v.name === '版本1'),
+    capped.map(v => v.name).slice(0, 3).join(','))
+
+  // 单快照体积上限
+  ed.clearVersionSnapshots()
+  const hugeProjectCanvas = ed.addCanvas('大体积测试')
+  ed.switchCanvas(hugeProjectCanvas.id)
+  ed.page.value.components = [makeComponent('text', { props: { content: 'x'.repeat(2 * 1024 * 1024 + 1024) } })]
+  const tooBig = ed.saveVersionSnapshot('超大版本')
+  t.check('超出单快照体积上限时拒绝保存',
+    tooBig.ok === false && (tooBig.message || '').includes('上限'),
+    JSON.stringify(tooBig))
+  ed.page.value.components = []
+  ed.clearVersionSnapshots()
+
   // ==================== 页面尺寸与重置 ====================
   t.group('页面属性')
 

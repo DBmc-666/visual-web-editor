@@ -7,6 +7,15 @@
 import { reactive, computed, watch } from 'vue'
 import { generateId, generatePageId } from '../utils/idGenerator'
 import { buildPageNameIndex, resolvePagesPageLinks, countPageLinks, sanitizeSlug } from '../utils/pageLinks.js'
+import {
+  listVersions,
+  saveVersion,
+  getVersion,
+  renameVersion,
+  removeVersion,
+  clearVersions,
+  getVersionsSize
+} from '../utils/versionStore.js'
 
 /**
  * 草稿持久化存储键
@@ -817,14 +826,46 @@ function createPageSnapshot() {
   return JSON.parse(JSON.stringify(state.page))
 }
 
-// 保存当前状态到撤销栈
-function saveHistory(actionType, componentId = null) {
-  // 创建状态快照
+// 生成整个项目的快照（用于结构性操作：增删画布/页面、应用整站等）
+function createProjectSnapshot() {
+  return {
+    project: JSON.parse(JSON.stringify(state.project)),
+    activeCanvasId: state.activeCanvasId,
+    activePageId: state.activePageId
+  }
+}
+
+/**
+ * 在项目里定位某个页面
+ * @param {string} pageId
+ * @returns {{canvasId: string, canvas: Object}|null}
+ */
+function findPageLocation(pageId) {
+  for (const canvas of state.project?.canvases || []) {
+    if ((canvas.pages || []).some(page => page.id === pageId)) {
+      return { canvasId: canvas.id, canvas }
+    }
+  }
+  return null
+}
+
+/**
+ * 保存当前状态到撤销栈
+ * @param {string} actionType - 动作名（用于调试/提示）
+ * @param {string|null} componentId - 相关组件 id
+ * @param {'page'|'project'} scope - 快照范围：
+ *   page 只快照当前页面（组件级操作）；
+ *   project 快照整个项目（结构性操作：增删画布/页面、应用整站等）
+ */
+function saveHistory(actionType, componentId = null, scope = 'page') {
   const snapshot = {
     timestamp: Date.now(),
     actionType,
     componentId,
-    page: createPageSnapshot(),
+    scope,
+    pageId: scope === 'page' ? (state.page ? state.page.id : null) : null,
+    page: scope === 'page' ? createPageSnapshot() : null,
+    project: scope === 'project' ? createProjectSnapshot() : null,
     selectedId: state.selectedId
   }
 
@@ -838,6 +879,40 @@ function saveHistory(actionType, componentId = null) {
   if (state.undoStack.length > state.maxHistory) {
     state.undoStack.shift()
   }
+}
+
+/**
+ * 恢复一个历史快照
+ * @param {Object} snapshot
+ * @returns {boolean} 是否恢复成功
+ */
+function restoreSnapshot(snapshot) {
+  if (!snapshot) return false
+
+  // 项目级快照：整体恢复（画布/页面结构变化）
+  if (snapshot.scope === 'project' && snapshot.project) {
+    state.project = JSON.parse(JSON.stringify(snapshot.project.project))
+    state.activeCanvasId = snapshot.project.activeCanvasId
+    state.activePageId = snapshot.project.activePageId
+    syncActivePage()
+    state.selectedId = snapshot.selectedId
+    return true
+  }
+
+  // 页面级快照：必要时先切回目标页面（期间可能切换过页面），再恢复内容
+  if (snapshot.pageId && state.page?.id !== snapshot.pageId) {
+    const location = findPageLocation(snapshot.pageId)
+    if (!location) return false
+    state.activeCanvasId = location.canvasId
+    state.activePageId = snapshot.pageId
+    syncActivePage()
+  }
+
+  if (!state.page || !snapshot.page) return false
+
+  Object.assign(state.page, snapshot.page)
+  state.selectedId = snapshot.selectedId
+  return true
 }
 
 // 计算属性
@@ -1442,6 +1517,7 @@ const actions = {
 
   // 新建画布（完全独立的空间，含一个空白首页）
   addCanvas(name) {
+    saveHistory('addCanvas', null, 'project')
     const canvas = createCanvasState(name || `画布 ${state.project.canvases.length + 1}`, '首页')
     state.project.canvases.push(canvas)
     actions.switchCanvas(canvas.id)
@@ -1452,7 +1528,8 @@ const actions = {
   renameCanvas(canvasId, name) {
     const canvas = state.project.canvases.find(c => c.id === canvasId)
     const cleaned = String(name || '').trim()
-    if (!canvas || !cleaned) return false
+    if (!canvas || !cleaned || canvas.name === cleaned) return false
+    saveHistory('renameCanvas', null, 'project')
     canvas.name = cleaned
     return true
   },
@@ -1463,6 +1540,7 @@ const actions = {
     const index = state.project.canvases.findIndex(c => c.id === canvasId)
     if (index === -1) return false
 
+    saveHistory('removeCanvas', null, 'project')
     state.project.canvases.splice(index, 1)
 
     if (state.activeCanvasId === canvasId) {
@@ -1489,6 +1567,7 @@ const actions = {
   addPage(name) {
     const canvas = getActiveCanvas()
     if (!canvas) return null
+    saveHistory('addPage', null, 'project')
     const page = createPageState(name || `页面 ${canvas.pages.length + 1}`)
     canvas.pages.push(page)
     actions.switchPage(page.id)
@@ -1500,7 +1579,8 @@ const actions = {
     const canvas = getActiveCanvas()
     const page = canvas && canvas.pages.find(p => p.id === pageId)
     const cleaned = String(name || '').trim()
-    if (!page || !cleaned) return false
+    if (!page || !cleaned || page.name === cleaned) return false
+    saveHistory('renamePage', null, 'project')
     page.name = cleaned
     return true
   },
@@ -1515,6 +1595,7 @@ const actions = {
     const index = canvas.pages.findIndex(p => p.id === pageId)
     if (index === -1) return null
 
+    saveHistory('duplicatePage', null, 'project')
     const copy = JSON.parse(JSON.stringify(canvas.pages[index]))
     copy.id = generatePageId()
     copy.name = `${copy.name} 副本`
@@ -1535,6 +1616,7 @@ const actions = {
     const index = canvas.pages.findIndex(p => p.id === pageId)
     if (index === -1) return false
 
+    saveHistory('removePage', null, 'project')
     canvas.pages.splice(index, 1)
 
     if (state.activePageId === pageId) {
@@ -1556,6 +1638,7 @@ const actions = {
     const target = direction === 'left' ? index - 1 : index + 1
     if (target < 0 || target >= canvas.pages.length) return false
 
+    saveHistory('movePage', null, 'project')
     const [page] = canvas.pages.splice(index, 1)
     canvas.pages.splice(target, 0, page)
     return true
@@ -1573,6 +1656,8 @@ const actions = {
   applySitePages(pages, options = {}) {
     const canvas = getActiveCanvas()
     if (!canvas || !Array.isArray(pages) || pages.length === 0) return null
+
+    saveHistory('applySitePages', null, 'project')
 
     // 1. 规范化并分配新 id（忽略 AI 传来的 id，避免与已有页面冲突）
     const created = pages.map(pageData => {
@@ -1853,21 +1938,25 @@ const actions = {
   undo() {
     if (state.undoStack.length === 0) return false
 
-    // 保存当前状态到重做栈
-    const currentSnapshot = {
+    // 保存当前状态到重做栈（范围与即将恢复的快照一致）
+    const target = state.undoStack[state.undoStack.length - 1]
+    const scope = target?.scope === 'project' ? 'project' : 'page'
+    state.redoStack.push({
       timestamp: Date.now(),
       actionType: 'undo',
-      page: createPageSnapshot(),
+      scope,
+      pageId: scope === 'page' ? (state.page ? state.page.id : null) : null,
+      page: scope === 'page' ? createPageSnapshot() : null,
+      project: scope === 'project' ? createProjectSnapshot() : null,
       selectedId: state.selectedId
-    }
-    state.redoStack.push(currentSnapshot)
+    })
 
-    // 从撤销栈弹出上一个状态
+    // 从撤销栈弹出上一个状态并恢复
     const previousState = state.undoStack.pop()
-    
-    // 恢复状态
-    Object.assign(state.page, previousState.page)
-    state.selectedId = previousState.selectedId
+    if (!restoreSnapshot(previousState)) {
+      state.redoStack.pop()
+      return false
+    }
 
     return true
   },
@@ -1876,21 +1965,25 @@ const actions = {
   redo() {
     if (state.redoStack.length === 0) return false
 
-    // 保存当前状态到撤销栈
-    const currentSnapshot = {
+    // 保存当前状态到撤销栈（范围与即将恢复的快照一致）
+    const target = state.redoStack[state.redoStack.length - 1]
+    const scope = target?.scope === 'project' ? 'project' : 'page'
+    state.undoStack.push({
       timestamp: Date.now(),
       actionType: 'redo',
-      page: createPageSnapshot(),
+      scope,
+      pageId: scope === 'page' ? (state.page ? state.page.id : null) : null,
+      page: scope === 'page' ? createPageSnapshot() : null,
+      project: scope === 'project' ? createProjectSnapshot() : null,
       selectedId: state.selectedId
-    }
-    state.undoStack.push(currentSnapshot)
+    })
 
-    // 从重做栈弹出下一个状态
+    // 从重做栈弹出下一个状态并恢复
     const nextState = state.redoStack.pop()
-    
-    // 恢复状态
-    Object.assign(state.page, nextState.page)
-    state.selectedId = nextState.selectedId
+    if (!restoreSnapshot(nextState)) {
+      state.undoStack.pop()
+      return false
+    }
 
     return true
   },
@@ -1909,6 +2002,78 @@ const actions = {
   clearHistory() {
     state.undoStack = []
     state.redoStack = []
+  },
+
+  // ==================== 历史版本快照 ====================
+
+  // 列出已保存的历史版本（不含完整数据）
+  listVersionSnapshots() {
+    return listVersions()
+  },
+
+  /**
+   * 把当前项目保存为一个历史版本
+   * @param {string} [name] - 版本名称
+   * @returns {{ok: boolean, item?: Object, message?: string}}
+   */
+  saveVersionSnapshot(name) {
+    return saveVersion({
+      name,
+      project: state.project,
+      activeCanvasId: state.activeCanvasId,
+      activePageId: state.activePageId
+    })
+  },
+
+  /**
+   * 恢复到某个历史版本
+   * 恢复前会把当前状态压入撤销栈，因此可以用 Ctrl+Z 退回
+   * @param {string} id - 版本 id
+   * @returns {{ok: boolean, message?: string}}
+   */
+  restoreVersionSnapshot(id) {
+    const data = getVersion(id)
+    if (!data || !data.project || !Array.isArray(data.project.canvases)) {
+      return { ok: false, message: '版本不存在或已损坏' }
+    }
+
+    saveHistory('restoreVersion', null, 'project')
+
+    state.project = JSON.parse(JSON.stringify(data.project))
+
+    // 容错：版本里的激活画布/页面可能已不存在
+    state.activeCanvasId = state.project.canvases.some(c => c.id === data.activeCanvasId)
+      ? data.activeCanvasId
+      : (state.project.canvases[0] ? state.project.canvases[0].id : null)
+
+    const canvas = state.project.canvases.find(c => c.id === state.activeCanvasId)
+    state.activePageId = (canvas?.pages || []).some(p => p.id === data.activePageId)
+      ? data.activePageId
+      : (canvas?.pages?.[0] ? canvas.pages[0].id : null)
+
+    actions.deselectComponent()
+    syncActivePage()
+    return { ok: true }
+  },
+
+  // 重命名历史版本
+  renameVersionSnapshot(id, name) {
+    return renameVersion(id, name)
+  },
+
+  // 删除历史版本
+  removeVersionSnapshot(id) {
+    return removeVersion(id)
+  },
+
+  // 清空全部历史版本
+  clearVersionSnapshots() {
+    return clearVersions()
+  },
+
+  // 历史版本占用的存储空间（字节）
+  getVersionSnapshotsSize() {
+    return getVersionsSize()
   },
 
   // ==================== 辅助线功能 ====================

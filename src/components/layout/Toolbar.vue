@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useEditor } from '../../stores/editor'
 import { useAi } from '../../stores/ai'
+import VersionPanel from '../panels/VersionPanel.vue'
 import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages, exportVue, exportSiteWithImages, rewritePageLinks } from '../../utils/htmlGenerator'
 
 const { page, previewMode, togglePreviewMode, setZoom, zoom, deselectComponent, exportPageJSON, exportLayoutJSON, importPageJSON, importLayoutJSON, undo, redo, canUndo, canRedo, guidesVisible, guidesList, snapEnabled, toggleGuides, toggleSnap, addHorizontalGuide, addVerticalGuide, addCircleGuide, addCenterGuides, addRotatableLineGuide, clearGuides, activeCanvas, pages } = useEditor()
@@ -19,6 +20,9 @@ const showPageSettings = ref(false)
 // 导入/导出下拉菜单显示状态
 const showImportMenu = ref(false)
 const showExportMenu = ref(false)
+
+// 历史版本面板
+const showVersionPanel = ref(false)
 
 // 辅助线下拉菜单显示状态
 const showGuidesMenu = ref(false)
@@ -469,6 +473,16 @@ function closePageSettings() {
         导出 Vue
       </button>
 
+      <!-- 历史版本快照 -->
+      <button
+        class="btn btn-secondary"
+        @click="showVersionPanel = true"
+        v-show="!previewMode"
+        title="把整个项目保存为快照，可随时恢复（存在浏览器本地）"
+      >
+        📚 版本
+      </button>
+
       <!-- 隐藏的文件输入 -->
       <input
         ref="fileInput"
@@ -479,6 +493,9 @@ function closePageSettings() {
       />
     </div>
   </header>
+
+  <!-- 历史版本面板 -->
+  <VersionPanel v-if="showVersionPanel" @close="showVersionPanel = false" />
 </template>
 
 <style scoped>
