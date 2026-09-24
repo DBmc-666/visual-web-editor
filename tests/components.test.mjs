@@ -154,4 +154,79 @@ export default async function run(t) {
   t.equal('未提供 seoLang 时默认 zh-CN',
     schema.sanitizePageData({ name: 'A', components: [{ id: 'x', type: 'text', left: 0, top: 0, width: 100, height: 40, props: {} }] }).page.seoLang,
     'zh-CN')
+
+  // ==================== 预设页面模板 ====================
+  t.group('预设页面模板')
+
+  const { PRESET_PAGES } = await importSrc('utils/presetPages.js')
+  t.check('预设模板是数组且不为空', Array.isArray(PRESET_PAGES) && PRESET_PAGES.length >= 5, String(PRESET_PAGES?.length))
+
+  PRESET_PAGES.forEach((preset, index) => {
+    const label = preset?.name || `第 ${index + 1} 个`
+    t.check(`预设结构完整：${label}`,
+      typeof preset.name === 'string' && preset.name.length > 0 &&
+      !!preset.config &&
+      typeof preset.config.width === 'number' &&
+      typeof preset.config.height === 'number' &&
+      Array.isArray(preset.config.components) &&
+      preset.config.components.length > 0,
+      JSON.stringify({ w: preset.config?.width, h: preset.config?.height, n: preset.config?.components?.length }))
+  })
+
+  // 预设里不能出现未知组件类型（否则应用后会被静默丢弃）
+  const unknownTypes = []
+  PRESET_PAGES.forEach(preset => {
+    ;(preset.config?.components || []).forEach(comp => {
+      if (!schema.KNOWN_COMPONENT_TYPES.includes(comp.type)) {
+        unknownTypes.push(`${preset.name}: ${comp.type}`)
+      }
+    })
+  })
+  t.check('预设中所有组件类型都是已知类型', unknownTypes.length === 0, unknownTypes.join(', '))
+
+  // 预设组件不能越界
+  const outOfBounds = []
+  PRESET_PAGES.forEach(preset => {
+    const { width, height } = preset.config
+    ;(preset.config.components || []).forEach(comp => {
+      if (comp.left < 0 || comp.top < 0 || comp.left + comp.width > width || comp.top + comp.height > height) {
+        outOfBounds.push(`${preset.name}: ${comp.type}(${comp.left},${comp.top} ${comp.width}x${comp.height})`)
+      }
+    })
+  })
+  t.check('预设中组件都在页面范围内', outOfBounds.length === 0, outOfBounds.slice(0, 5).join(', '))
+
+  // 预设里使用的 props 键应在白名单内（避免写了不生效的字段）
+  const badProps = []
+  PRESET_PAGES.forEach(preset => {
+    ;(preset.config?.components || []).forEach(comp => {
+      const allowed = schema.PROP_FIELDS[comp.type] || {}
+      Object.keys(comp.props || {}).forEach(key => {
+        if (!allowed[key]) badProps.push(`${preset.name}: ${comp.type}.${key}`)
+      })
+    })
+  })
+  t.check('预设中 props 键都在白名单内', badProps.length === 0, badProps.slice(0, 6).join(', '))
+
+  // 新增的数据看板模板应使用展示组件
+  const dashboard = PRESET_PAGES.find(p => p.name === '数据看板页')
+  t.check('存在「数据看板页」模板', !!dashboard)
+  if (dashboard) {
+    const types = dashboard.config.components.map(c => c.type)
+    t.check('看板模板用到统计卡片/进度条/折叠面板/徽章',
+      ['stat', 'progress', 'accordion', 'badge'].every(type => types.includes(type)),
+      [...new Set(types)].join(','))
+  }
+
+  // 应用到画布
+  const ed = editorMod.useEditor()
+  const canvas = ed.addCanvas('预设测试')
+  ed.switchCanvas(canvas.id)
+  if (dashboard) {
+    ed.applyPageTemplate(dashboard.config)
+    t.equal('应用预设后组件数一致', ed.page.value.components.length, dashboard.config.components.length)
+    t.equal('应用预设后页面尺寸一致', ed.page.value.width, dashboard.config.width)
+    t.check('应用预设后组件都有 id', ed.page.value.components.every(c => typeof c.id === 'string' && c.id.length > 0))
+    t.check('应用预设后可撤销', ed.canUndo() === true)
+  }
 }

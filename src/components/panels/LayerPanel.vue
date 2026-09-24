@@ -41,7 +41,11 @@ const TYPE_ICONS = {
   list: '列',
   table: '表',
   video: '视',
-  carousel: '播'
+  carousel: '播',
+  progress: '进',
+  accordion: '折',
+  badge: '签',
+  stat: '计'
 }
 
 // 排序模式：'position' 按页面位置（从上往下、从大往小）| 'stack' 按叠放层级（最上层在前）

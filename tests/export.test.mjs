@@ -277,6 +277,64 @@ export default async function run(t) {
   t.check('ZIP 内含视频封面图', posterZip.names.includes('images/cover.png'), posterZip.names.join(','))
   t.check('导出 HTML 引用封面图', (await posterZip.read('poster-test.html')).includes('images/cover.png'))
 
+  // ==================== 展示组件导出 ====================
+  t.group('展示组件导出（进度条 / 折叠面板 / 徽章 / 统计卡片）')
+
+  const showcaseHtml = gen.generatePageHTML(pageWith([
+    makeComponent('progress', { props: { value: 45, max: 100, barColor: '#ff0000', trackColor: '#eeeeee', barHeight: 12, rounded: true, showLabel: true } }),
+    makeComponent('accordion', { props: { items: '问题一|答案一\n问题二|答案二', firstOpen: true, allowMultiple: false, headerBackground: '#fafafa' } }),
+    makeComponent('badge', { props: { text: '限时', backgroundColor: '#fff1f0', shape: 'pill', fontWeight: 700 }, style: { color: '#ff4d4f', fontSize: 12 } }),
+    makeComponent('stat', { props: { value: '256', label: '订单数', unit: '+', trend: '8.2%', trendUp: true, icon: '📦' } })
+  ]))
+
+  t.includes('进度条：输出百分比与颜色', showcaseHtml, 'width: 45%')
+  t.includes('进度条：使用配置的条色与轨道色', showcaseHtml, '#ff0000')
+  t.includes('进度条：显示百分比文字', showcaseHtml, '45%')
+  t.check('进度条：条高生效', showcaseHtml.includes('height: 12px'), '')
+
+  t.includes('折叠面板：使用原生 details', showcaseHtml, '<details')
+  t.includes('折叠面板：第一条默认展开', showcaseHtml, '<details open')
+  t.includes('折叠面板：标题与内容都输出', showcaseHtml, '问题一')
+  t.includes('折叠面板：输出互斥脚本', showcaseHtml, 'other.open = false')
+
+  t.includes('徽章：输出文字与背景', showcaseHtml, '限时')
+  t.includes('徽章：胶囊圆角', showcaseHtml, 'border-radius: 999px')
+  t.includes('徽章：使用 style 颜色与字号', showcaseHtml, '#ff4d4f')
+
+  t.includes('统计卡片：输出数值与单位', showcaseHtml, '256')
+  t.includes('统计卡片：输出说明文字', showcaseHtml, '订单数')
+  t.includes('统计卡片：输出趋势与箭头', showcaseHtml, '8.2%')
+  t.includes('统计卡片：输出图标', showcaseHtml, '📦')
+
+  // 折叠面板：允许同时展开时不输出互斥脚本
+  const accordionMulti = gen.generatePageHTML(pageWith([
+    makeComponent('accordion', { props: { items: 'A|a', allowMultiple: true } })
+  ]))
+  t.check('折叠面板：允许多开时不加互斥脚本', !accordionMulti.includes('other.open = false'))
+
+  // 进度条：超出 max 时按 100% 处理，负值按 0
+  const progressClamp = gen.generatePageHTML(pageWith([
+    makeComponent('progress', { props: { value: 500, max: 100 } }),
+    makeComponent('progress', { props: { value: -20, max: 100 } })
+  ]))
+  t.check('进度条：数值被裁剪到 0~100%',
+    progressClamp.includes('width: 100%') && progressClamp.includes('width: 0%'))
+
+  // Vue 导出
+  const showcaseVue = gen.generateVueComponent({
+    name: 'S', width: 1200, height: 800, backgroundColor: '#fff',
+    components: [
+      makeComponent('progress', { props: { value: 30, max: 100, showLabel: true } }),
+      makeComponent('accordion', { props: { items: 'Q|A' } }),
+      makeComponent('badge', { props: { text: '热' } }),
+      makeComponent('stat', { props: { value: '99', label: '总数' } })
+    ]
+  })
+  t.includes('Vue：进度条导出', showcaseVue, 'width: 30%')
+  t.includes('Vue：折叠面板导出', showcaseVue, '<details')
+  t.includes('Vue：徽章导出', showcaseVue, '热')
+  t.includes('Vue：统计卡片导出', showcaseVue, '总数')
+
   // ==================== 整站 Vue 工程导出 ====================
   t.group('整站 Vue 工程导出')
 

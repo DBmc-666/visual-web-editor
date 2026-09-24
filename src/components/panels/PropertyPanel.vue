@@ -663,6 +663,52 @@ const componentPropsFields = {
       { value: '_self', label: '当前窗口' },
       { value: '_blank', label: '新窗口' }
     ]}
+  ],
+
+  // ==================== 展示组件（扩展） ====================
+
+  progress: [
+    { key: 'value', label: '当前值', type: 'number', min: 0, max: 100000 },
+    { key: 'max', label: '最大值', type: 'number', min: 1, max: 100000 },
+    { key: 'barColor', label: '进度条颜色', type: 'color' },
+    { key: 'trackColor', label: '轨道颜色', type: 'color' },
+    { key: 'barHeight', label: '条高(px)', type: 'number', min: 2, max: 40 },
+    { key: 'rounded', label: '圆角', type: 'checkbox' },
+    { key: 'showLabel', label: '显示百分比', type: 'checkbox' },
+    { key: 'labelColor', label: '百分比文字色', type: 'color' }
+  ],
+
+  // 折叠项在下方「折叠项配置」中逐项编辑
+  accordion: [
+    { key: 'firstOpen', label: '默认展开第一项', type: 'checkbox' },
+    { key: 'allowMultiple', label: '允许同时展开多项', type: 'checkbox' },
+    { key: 'headerBackground', label: '标题栏背景', type: 'color' },
+    { key: 'activeColor', label: '展开时标题色', type: 'color' },
+    { key: 'itemPadding', label: '内边距(px)', type: 'number', min: 4, max: 40 }
+  ],
+
+  badge: [
+    { key: 'text', label: '徽章文字', type: 'text' },
+    { key: 'backgroundColor', label: '背景颜色', type: 'color' },
+    { key: 'shape', label: '形状', type: 'select', options: [
+      { value: 'pill', label: '胶囊' },
+      { value: 'square', label: '圆角方形' }
+    ]},
+    { key: 'borderColor', label: '描边颜色', type: 'color' },
+    { key: 'fontWeight', label: '字重', type: 'number', min: 100, max: 900 }
+  ],
+
+  stat: [
+    { key: 'value', label: '主数值', type: 'text' },
+    { key: 'label', label: '说明文字', type: 'text' },
+    { key: 'unit', label: '数值后缀', type: 'text' },
+    { key: 'trend', label: '趋势文字', type: 'text' },
+    { key: 'trendUp', label: '趋势为上升', type: 'checkbox' },
+    { key: 'icon', label: '图标（emoji）', type: 'text' },
+    { key: 'valueColor', label: '数值颜色', type: 'color' },
+    { key: 'labelColor', label: '说明文字色', type: 'color' },
+    { key: 'trendUpColor', label: '上升趋势色', type: 'color' },
+    { key: 'trendDownColor', label: '下降趋势色', type: 'color' }
   ]
 }
 

@@ -19,7 +19,9 @@ export const KNOWN_COMPONENT_TYPES = [
   // 导航组件
   'navMenu', 'breadcrumb', 'tabs',
   // 内容组件（扩展）
-  'divider', 'icon', 'list', 'table', 'video', 'carousel'
+  'divider', 'icon', 'list', 'table', 'video', 'carousel',
+  // 展示组件（扩展）
+  'progress', 'accordion', 'badge', 'stat'
 ]
 
 /**
@@ -279,6 +281,45 @@ export const PROP_FIELDS = {
     showIndicators: { type: 'boolean', desc: '是否显示指示点' },
     showArrows: { type: 'boolean', desc: '是否显示左右箭头' },
     linkTarget: { type: 'string', desc: '图片跳转链接的打开方式', enum: ['_self', '_blank'] }
+  },
+
+  // ==================== 展示组件（扩展） ====================
+  progress: {
+    value: { type: 'number', desc: '当前值' },
+    max: { type: 'number', desc: '最大值（默认 100）' },
+    barColor: { type: 'string', desc: '进度条颜色' },
+    trackColor: { type: 'string', desc: '轨道颜色' },
+    barHeight: { type: 'number', desc: '条高（px）' },
+    rounded: { type: 'boolean', desc: '是否圆角' },
+    showLabel: { type: 'boolean', desc: '是否显示百分比文字' },
+    labelColor: { type: 'string', desc: '百分比文字颜色' }
+  },
+  accordion: {
+    items: { type: 'string', desc: '折叠项，每行一条，格式：标题|内容' },
+    firstOpen: { type: 'boolean', desc: '是否默认展开第一项' },
+    allowMultiple: { type: 'boolean', desc: '是否允许同时展开多项' },
+    headerBackground: { type: 'string', desc: '标题栏背景色' },
+    activeColor: { type: 'string', desc: '展开时的标题颜色' },
+    itemPadding: { type: 'number', desc: '内边距（px）' }
+  },
+  badge: {
+    text: { type: 'string', desc: '徽章文字' },
+    backgroundColor: { type: 'string', desc: '背景色' },
+    shape: { type: 'string', desc: '形状', enum: ['pill', 'square'] },
+    borderColor: { type: 'string', desc: '描边颜色（留空则无描边）' },
+    fontWeight: { type: 'number', desc: '字重' }
+  },
+  stat: {
+    value: { type: 'string', desc: '主数值（字符串，可含单位）' },
+    label: { type: 'string', desc: '说明文字' },
+    unit: { type: 'string', desc: '数值后缀单位' },
+    trend: { type: 'string', desc: '趋势文字，如 +12.5%（可留空）' },
+    trendUp: { type: 'boolean', desc: '趋势是否上升（决定颜色与箭头）' },
+    icon: { type: 'string', desc: '可选图标（emoji）' },
+    valueColor: { type: 'string', desc: '数值颜色' },
+    labelColor: { type: 'string', desc: '说明文字颜色' },
+    trendUpColor: { type: 'string', desc: '上升趋势颜色' },
+    trendDownColor: { type: 'string', desc: '下降趋势颜色' }
   }
 }
 

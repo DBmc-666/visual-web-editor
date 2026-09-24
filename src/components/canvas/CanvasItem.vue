@@ -18,6 +18,10 @@ import ListWidget from '../widgets/ListWidget.vue'
 import TableWidget from '../widgets/TableWidget.vue'
 import VideoWidget from '../widgets/VideoWidget.vue'
 import CarouselWidget from '../widgets/CarouselWidget.vue'
+import ProgressWidget from '../widgets/ProgressWidget.vue'
+import AccordionWidget from '../widgets/AccordionWidget.vue'
+import BadgeWidget from '../widgets/BadgeWidget.vue'
+import StatWidget from '../widgets/StatWidget.vue'
 
 const props = defineProps({
   component: {
@@ -173,7 +177,12 @@ const widgetMap = {
   list: ListWidget,
   table: TableWidget,
   video: VideoWidget,
-  carousel: CarouselWidget
+  carousel: CarouselWidget,
+  // 展示组件（扩展）
+  progress: ProgressWidget,
+  accordion: AccordionWidget,
+  badge: BadgeWidget,
+  stat: StatWidget
 }
 
 // 当前组件的 Widget

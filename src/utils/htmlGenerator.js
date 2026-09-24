@@ -1215,6 +1215,127 @@ setInterval(updateDatetime${datetimeIdClean}, 1000);
       }
     }
 
+    // ==================== 展示组件（扩展） ====================
+
+    case 'progress': {
+      const pgValue = Number(props.value) || 0
+      const pgMax = Math.max(1, Number(props.max) || 100)
+      const pgPercent = Math.max(0, Math.min(100, Math.round((pgValue / pgMax) * 100)))
+      const pgBar = props.barColor || '#1890ff'
+      const pgTrack = props.trackColor || '#f0f0f0'
+      const pgHeight = Math.max(2, Number(props.barHeight) || 10)
+      const pgRadius = props.rounded !== false ? `${pgHeight}px` : '0'
+      const pgLabelColor = props.labelColor || '#666666'
+      const pgShowLabel = props.showLabel !== false
+      const pgFontSize = Number(style.fontSize) || 13
+
+      const pgContent = `<div style="flex: 1; min-width: 0; height: ${pgHeight}px; background-color: ${pgTrack}; border-radius: ${pgRadius}; overflow: hidden;">`
+        + `<div style="width: ${pgPercent}%; height: 100%; background-color: ${pgBar}; border-radius: ${pgRadius};"></div></div>`
+        + (pgShowLabel
+          ? `<span style="flex-shrink: 0; color: ${pgLabelColor}; font-size: ${pgFontSize}px; line-height: 1;">${pgPercent}%</span>`
+          : '')
+
+      return {
+        tag: 'div',
+        content: pgContent,
+        attrs: 'style="display: flex; align-items: center; gap: 8px; box-sizing: border-box;"'
+      }
+    }
+
+    case 'accordion': {
+      const accordionId = `accordion_${component.id.replace(/-/g, '_')}`
+      const acItems = String(props.items || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [title, content] = line.split('|')
+          return { title: (title || '').trim(), content: (content || '').trim() }
+        })
+      const acFirstOpen = props.firstOpen !== false
+      const acHeaderBg = props.headerBackground || '#fafafa'
+      const acPad = Number(props.itemPadding) || 12
+      const acBorder = style.borderColor || '#e8e8e8'
+      const acColor = style.color || '#333333'
+
+      // 用原生 <details>/<summary>，无需 JS 即可展开收起
+      const acContent = acItems.map((item, index) => `
+        <details${acFirstOpen && index === 0 ? ' open' : ''} style="border: 1px solid ${acBorder}; border-radius: 6px; overflow: hidden;${index > 0 ? ' margin-top: -1px;' : ''}">
+          <summary style="padding: ${acPad}px; background-color: ${acHeaderBg}; color: ${acColor}; font-weight: 500; cursor: pointer;">${escapeHTML(item.title)}</summary>
+          <div style="padding: ${acPad}px; color: ${acColor}; line-height: 1.6;">${escapeHTML(item.content)}</div>
+        </details>`).join('')
+
+      // 不允许同时展开时，用一小段脚本保证互斥（与编辑器预览行为一致）
+      const acScript = props.allowMultiple === false
+        ? `
+(function () {
+  var root = document.querySelector('[data-accordion="${accordionId}"]');
+  if (!root) return;
+  var items = root.querySelectorAll('details');
+  items.forEach(function (item) {
+    item.addEventListener('toggle', function () {
+      if (!item.open) return;
+      items.forEach(function (other) { if (other !== item) other.open = false; });
+    });
+  });
+})();`
+        : ''
+
+      return {
+        tag: 'div',
+        content: acContent,
+        attrs: `data-accordion="${accordionId}"`,
+        script: acScript
+      }
+    }
+
+    case 'badge': {
+      const bdText = props.text || 'NEW'
+      const bdBg = props.backgroundColor || '#e6f7ff'
+      const bdShape = props.shape || 'pill'
+      const bdBorder = props.borderColor || ''
+      const bdWeight = Number(props.fontWeight) || 600
+      const bdColor = style.color || '#1890ff'
+      const bdFontSize = Number(style.fontSize) || 12
+      const bdRadius = bdShape === 'square' ? '4px' : '999px'
+
+      return {
+        tag: 'div',
+        content: `<span style="display: inline-flex; align-items: center; justify-content: center; padding: 3px 10px; background-color: ${bdBg}; color: ${bdColor}; font-size: ${bdFontSize}px; font-weight: ${bdWeight}; border-radius: ${bdRadius}; line-height: 1.4; white-space: nowrap;${bdBorder ? ` border: 1px solid ${bdBorder};` : ''}">${escapeHTML(bdText)}</span>`,
+        attrs: 'style="display: flex; align-items: center; justify-content: center; box-sizing: border-box;"'
+      }
+    }
+
+    case 'stat': {
+      const stValue = props.value === undefined || props.value === null ? '1280' : props.value
+      const stLabel = props.label || ''
+      const stUnit = props.unit || ''
+      const stTrend = props.trend || ''
+      const stUp = props.trendUp !== false
+      const stIcon = props.icon || ''
+      const stValueColor = props.valueColor || '#1f2d3d'
+      const stLabelColor = props.labelColor || '#8c8c8c'
+      const stTrendColor = stUp ? (props.trendUpColor || '#52c41a') : (props.trendDownColor || '#ff4d4f')
+
+      let stContent = ''
+      if (stIcon || stLabel) {
+        stContent += '<div style="display: flex; align-items: center; gap: 6px; font-size: 0.9em;">'
+          + (stIcon ? `<span style="line-height: 1;">${escapeHTML(stIcon)}</span>` : '')
+          + (stLabel ? `<span style="color: ${stLabelColor};">${escapeHTML(stLabel)}</span>` : '')
+          + '</div>'
+      }
+      stContent += '<div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 6px;">'
+        + `<span style="font-size: 1.8em; font-weight: 700; color: ${stValueColor}; line-height: 1.2;">${escapeHTML(String(stValue))}${escapeHTML(stUnit)}</span>`
+        + (stTrend ? `<span style="font-size: 0.85em; font-weight: 600; color: ${stTrendColor};">${stUp ? '▲' : '▼'} ${escapeHTML(stTrend)}</span>` : '')
+        + '</div>'
+
+      return {
+        tag: 'div',
+        content: stContent,
+        attrs: 'style="display: flex; flex-direction: column; justify-content: center; box-sizing: border-box;"'
+      }
+    }
+
     default:
       return {
         tag: 'div',
@@ -3292,6 +3413,103 @@ ${padding}</div>`
       return `${padding}<div class="${className} carousel-widget" :style="{ ${baseStyle} }" data-index="0">
 ${' '.repeat(indent + 2)}<div style="position: absolute; inset: 0; overflow: hidden;">${slidesHtml}${captionsHtml}${arrowsHtml}
 ${' '.repeat(indent + 2)}</div>${dotsHtml}
+${padding}</div>`
+    }
+
+    // ==================== 展示组件（扩展） ====================
+
+    case 'progress': {
+      const pgValue = Number(props.value) || 0
+      const pgMax = Math.max(1, Number(props.max) || 100)
+      const pgPercent = Math.max(0, Math.min(100, Math.round((pgValue / pgMax) * 100)))
+      const pgBar = props.barColor || '#1890ff'
+      const pgTrack = props.trackColor || '#f0f0f0'
+      const pgHeight = Math.max(2, Number(props.barHeight) || 10)
+      const pgRadius = props.rounded !== false ? `${pgHeight}px` : '0'
+      const pgLabelColor = props.labelColor || '#666666'
+      const pgShowLabel = props.showLabel !== false
+      const pgFontSize = Number(style.fontSize) || 13
+
+      const pgInner = `<div style="flex: 1; min-width: 0; height: ${pgHeight}px; background-color: ${pgTrack}; border-radius: ${pgRadius}; overflow: hidden;">`
+        + `<div style="width: ${pgPercent}%; height: 100%; background-color: ${pgBar}; border-radius: ${pgRadius};"></div></div>`
+        + (pgShowLabel
+          ? `<span style="flex-shrink: 0; color: ${pgLabelColor}; font-size: ${pgFontSize}px; line-height: 1;">${pgPercent}%</span>`
+          : '')
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<div style="display: flex; align-items: center; gap: 8px; width: 100%; height: 100%; box-sizing: border-box;">${pgInner}</div>
+${padding}</div>`
+    }
+
+    case 'accordion': {
+      const acItems = String(props.items || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [title, content] = line.split('|')
+          return { title: (title || '').trim(), content: (content || '').trim() }
+        })
+      const acFirstOpen = props.firstOpen !== false
+      const acHeaderBg = props.headerBackground || '#fafafa'
+      const acPad = Number(props.itemPadding) || 12
+      const acBorder = style.borderColor || '#e8e8e8'
+      const acColor = style.color || '#333333'
+
+      const acHtml = acItems.map((item, index) =>
+        `\n${' '.repeat(indent + 2)}<details${acFirstOpen && index === 0 ? ' open' : ''} style="border: 1px solid ${acBorder}; border-radius: 6px; overflow: hidden;${index > 0 ? ' margin-top: -1px;' : ''}">`
+        + `\n${' '.repeat(indent + 4)}<summary style="padding: ${acPad}px; background-color: ${acHeaderBg}; color: ${acColor}; font-weight: 500; cursor: pointer;">${escapeHTML(item.title)}</summary>`
+        + `\n${' '.repeat(indent + 4)}<div style="padding: ${acPad}px; color: ${acColor}; line-height: 1.6;">${escapeHTML(item.content)}</div>`
+        + `\n${' '.repeat(indent + 2)}</details>`
+      ).join('')
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">${acHtml}
+${padding}</div>`
+    }
+
+    case 'badge': {
+      const bdText = props.text || 'NEW'
+      const bdBg = props.backgroundColor || '#e6f7ff'
+      const bdShape = props.shape || 'pill'
+      const bdBorder = props.borderColor || ''
+      const bdWeight = Number(props.fontWeight) || 600
+      const bdColor = style.color || '#1890ff'
+      const bdFontSize = Number(style.fontSize) || 12
+      const bdRadius = bdShape === 'square' ? '4px' : '999px'
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box;">
+${' '.repeat(indent + 4)}<span style="display: inline-flex; align-items: center; justify-content: center; padding: 3px 10px; background-color: ${bdBg}; color: ${bdColor}; font-size: ${bdFontSize}px; font-weight: ${bdWeight}; border-radius: ${bdRadius}; line-height: 1.4; white-space: nowrap;${bdBorder ? ` border: 1px solid ${bdBorder};` : ''}">${escapeHTML(bdText)}</span>
+${' '.repeat(indent + 2)}</div>
+${padding}</div>`
+    }
+
+    case 'stat': {
+      const stValue = props.value === undefined || props.value === null ? '1280' : props.value
+      const stLabel = props.label || ''
+      const stUnit = props.unit || ''
+      const stTrend = props.trend || ''
+      const stUp = props.trendUp !== false
+      const stIcon = props.icon || ''
+      const stValueColor = props.valueColor || '#1f2d3d'
+      const stLabelColor = props.labelColor || '#8c8c8c'
+      const stTrendColor = stUp ? (props.trendUpColor || '#52c41a') : (props.trendDownColor || '#ff4d4f')
+
+      const stTop = (stIcon || stLabel)
+        ? `\n${' '.repeat(indent + 2)}<div style="display: flex; align-items: center; gap: 6px; font-size: 0.9em;">`
+          + (stIcon ? `<span style="line-height: 1;">${escapeHTML(stIcon)}</span>` : '')
+          + (stLabel ? `<span style="color: ${stLabelColor};">${escapeHTML(stLabel)}</span>` : '')
+          + '</div>'
+        : ''
+
+      const stBottom = `\n${' '.repeat(indent + 2)}<div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 6px;">`
+        + `<span style="font-size: 1.8em; font-weight: 700; color: ${stValueColor}; line-height: 1.2;">${escapeHTML(String(stValue))}${escapeHTML(stUnit)}</span>`
+        + (stTrend ? `<span style="font-size: 0.85em; font-weight: 600; color: ${stTrendColor};">${stUp ? '▲' : '▼'} ${escapeHTML(stTrend)}</span>` : '')
+        + '</div>'
+
+      return `${padding}<div class="${className}" :style="{ ${baseStyle} }">
+${' '.repeat(indent + 2)}<div style="display: flex; flex-direction: column; justify-content: center; width: 100%; height: 100%; box-sizing: border-box;">${stTop}${stBottom}
+${' '.repeat(indent + 2)}</div>
 ${padding}</div>`
     }
 

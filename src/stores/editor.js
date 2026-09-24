@@ -46,7 +46,13 @@ export const COMPONENT_TYPES = {
   LIST: 'list',           // 列表
   TABLE: 'table',         // 表格
   VIDEO: 'video',         // 视频
-  CAROUSEL: 'carousel'    // 轮播图
+  CAROUSEL: 'carousel',   // 轮播图
+
+  // ========== 展示组件（扩展） ==========
+  PROGRESS: 'progress',   // 进度条
+  ACCORDION: 'accordion', // 折叠面板
+  BADGE: 'badge',         // 标签徽章
+  STAT: 'stat'            // 统计卡片
 }
 
 /**
@@ -76,6 +82,11 @@ export const COMPONENT_CATEGORIES = {
     name: '内容组件',
     icon: '🧩',
     components: ['divider', 'icon', 'list', 'table', 'video', 'carousel']
+  },
+  showcase: {
+    name: '展示组件',
+    icon: '📈',
+    components: ['progress', 'accordion', 'badge', 'stat']
   }
 }
 
@@ -576,6 +587,102 @@ export const COMPONENT_DEFAULTS = {
       interval: 3000,          // 自动播放间隔（ms）
       showIndicators: true,    // 显示指示点
       showArrows: true         // 显示左右箭头
+    }
+  },
+
+  // ==================== 展示组件（扩展） ====================
+
+  /**
+   * 进度条组件 - 展示完成度/占比
+   */
+  progress: {
+    name: '进度条',
+    width: 320,
+    height: 24,
+    style: {
+      backgroundColor: 'transparent'
+    },
+    props: {
+      value: 65,               // 当前值
+      max: 100,                // 最大值
+      barColor: '#1890ff',     // 进度条颜色
+      trackColor: '#f0f0f0',   // 轨道颜色
+      barHeight: 10,           // 条高（px）
+      rounded: true,           // 圆角
+      showLabel: true,         // 显示百分比文字
+      labelColor: '#666666'
+    }
+  },
+
+  /**
+   * 折叠面板组件 - 每条可展开/收起
+   */
+  accordion: {
+    name: '折叠面板',
+    width: 480,
+    height: 220,
+    style: {
+      backgroundColor: '#ffffff',
+      borderColor: '#e8e8e8',
+      fontSize: 14,
+      color: '#333333'
+    },
+    props: {
+      // 每行一条：标题|内容
+      items: '什么是可视化编辑器？|通过拖拽组件即可搭建网页，无需手写代码。\n支持导出吗？|支持导出 HTML 与 Vue 工程，也可以让 AI 直接生成成品网页。\n数据保存在哪里？|草稿与历史版本都保存在浏览器本地，不会上传。',
+      firstOpen: true,         // 默认展开第一项
+      allowMultiple: false,    // 是否允许同时展开多项
+      headerBackground: '#fafafa',
+      activeColor: '#1890ff',
+      itemPadding: 12
+    }
+  },
+
+  /**
+   * 标签徽章组件 - 状态/分类标记
+   */
+  badge: {
+    name: '标签徽章',
+    width: 88,
+    height: 28,
+    style: {
+      fontSize: 12,
+      color: '#1890ff',
+      textAlign: 'center'
+    },
+    props: {
+      text: 'NEW',             // 徽章文字
+      backgroundColor: '#e6f7ff',
+      shape: 'pill',           // pill（胶囊）| square（圆角方形）
+      borderColor: '',         // 可选描边
+      fontWeight: 600
+    }
+  },
+
+  /**
+   * 统计卡片组件 - 数值 + 说明
+   */
+  stat: {
+    name: '统计卡片',
+    width: 200,
+    height: 120,
+    style: {
+      backgroundColor: '#ffffff',
+      borderRadius: 10,
+      borderColor: '#e8e8e8',
+      padding: 16
+    },
+    props: {
+      value: '1280',           // 主数值
+      label: '本月访问量',      // 说明文字
+      unit: '',                // 单位（如 + / % / 万）
+      trend: '+12.5%',         // 趋势文字（可留空）
+      trendUp: true,           // 趋势为上升（决定颜色）
+      icon: '📈',              // 可选图标
+      valueColor: '#1f2d3d',
+      labelColor: '#8c8c8c',
+      trendUpColor: '#52c41a',
+      trendDownColor: '#ff4d4f'
     }
   }
 }
