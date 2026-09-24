@@ -3627,6 +3627,262 @@ function generateVueScript(components) {
 }
 
 /**
+ * 生成整站 Vue 工程的文件集合（Vue 3 + Vite + Vue Router，hash 路由）
+ *
+ * 生成结构：
+ *   package.json / vite.config.js / index.html / README.md
+ *   src/main.js / src/App.vue / src/router/index.js / src/assets/base.css
+ *   src/views/<ViewName>.vue   （每个页面一个视图组件）
+ *
+ * 页面之间的 `#page:<id>` 链接会被重写为路由路径（`#/about` 形式，配合 hash 路由，
+ * 静态部署或直接用文件打开都能跳转）
+ *
+ * @param {Object} canvas - 画布数据 { name, pages }
+ * @param {Object} imagePaths - 本地图片路径映射（由 collectLocalImagesFromPages 得到）
+ * @returns {Object} { [文件相对路径]: 文件内容 }
+ */
+export function generateVueSiteFiles(canvas, imagePaths = {}) {
+  const pages = (canvas?.pages || []).filter(Boolean)
+  if (pages.length === 0) return {}
+
+  const fileMap = buildPageFileMap(pages)
+  const nameFileMap = buildPageNameFileMap(pages, fileMap)
+
+  // 视图组件名（PascalCase）：优先用 AI 给的英文 slug，否则用序号
+  const viewNameOf = (page, index) => {
+    const slug = sanitizeSlug(page.slug)
+    if (slug) {
+      return slug.split('-').filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('')
+    }
+    return `Page${index + 1}`
+  }
+
+  // 路由路径：第一个页面为 /，其余用 slug
+  const routePathOf = (page, index) => {
+    if (index === 0) return '/'
+    const slug = sanitizeSlug(page.slug)
+    return `/${slug || `page-${index + 1}`}`
+  }
+
+  // 供 rewritePageLinks 使用的映射（hash 路由，所以带 # 前缀）
+  const pathMap = {}
+  const namePathMap = {}
+  pages.forEach((page, index) => {
+    const path = `#${routePathOf(page, index)}`
+    pathMap[page.id] = path
+    const name = String(page.name || '').trim()
+    if (name) {
+      namePathMap[name] = path
+      namePathMap[name.toLowerCase()] = path
+    }
+  })
+
+  const files = {}
+  const routeEntries = []
+
+  pages.forEach((page, index) => {
+    const viewName = viewNameOf(page, index)
+    const viewCode = rewritePageLinks(generateVueComponent(page, imagePaths), pathMap, namePathMap)
+    files[`src/views/${viewName}.vue`] = viewCode
+
+    routeEntries.push({
+      path: routePathOf(page, index),
+      name: viewName,
+      viewName,
+      title: String(page.seoTitle || page.name || '').trim() || `页面 ${index + 1}`,
+      description: String(page.seoDescription || '').trim()
+    })
+  })
+
+  const siteName = String(canvas?.name || 'Vue 站点').trim() || 'Vue 站点'
+  const firstTitle = routeEntries[0]?.title || siteName
+
+  files['package.json'] = `${JSON.stringify({
+    name: sanitizeSlug(siteName) || 'vue-site',
+    private: true,
+    version: '1.0.0',
+    type: 'module',
+    scripts: {
+      dev: 'vite',
+      build: 'vite build',
+      preview: 'vite preview'
+    },
+    dependencies: {
+      vue: '^3.4.0',
+      'vue-router': '^4.3.0'
+    },
+    devDependencies: {
+      '@vitejs/plugin-vue': '^5.0.0',
+      vite: '^5.0.0'
+    }
+  }, null, 2)}\n`
+
+  files['vite.config.js'] = [
+    "import { defineConfig } from 'vite'",
+    "import vue from '@vitejs/plugin-vue'",
+    '',
+    'export default defineConfig({',
+    '  plugins: [vue()]',
+    '})',
+    ''
+  ].join('\n')
+
+  files['index.html'] = [
+    '<!DOCTYPE html>',
+    '<html lang="zh-CN">',
+    '<head>',
+    '  <meta charset="UTF-8">',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    `  <title>${escapeHTML(firstTitle)}</title>`,
+    '</head>',
+    '<body>',
+    '  <div id="app"></div>',
+    '  <script type="module" src="/src/main.js"></script>',
+    '</body>',
+    '</html>',
+    ''
+  ].join('\n')
+
+  files['src/main.js'] = [
+    "import { createApp } from 'vue'",
+    "import App from './App.vue'",
+    "import router from './router/index.js'",
+    "import './assets/base.css'",
+    '',
+    'createApp(App).use(router).mount(\'#app\')',
+    ''
+  ].join('\n')
+
+  files['src/App.vue'] = [
+    '<script setup>',
+    '// 根组件：仅承载路由出口',
+    '</script>',
+    '',
+    '<template>',
+    '  <router-view />',
+    '</template>',
+    ''
+  ].join('\n')
+
+  const routerImports = routeEntries.map(entry => `import ${entry.viewName} from '../views/${entry.viewName}.vue'`).join('\n')
+  const routeList = routeEntries.map(entry => {
+    const meta = [`title: ${JSON.stringify(entry.title)}`]
+    if (entry.description) meta.push(`description: ${JSON.stringify(entry.description)}`)
+    return `  { path: ${JSON.stringify(entry.path)}, name: ${JSON.stringify(entry.name)}, component: ${entry.viewName}, meta: { ${meta.join(', ')} } }`
+  }).join(',\n')
+
+  files['src/router/index.js'] = [
+    "import { createRouter, createWebHashHistory } from 'vue-router'",
+    routerImports,
+    '',
+    '// 使用 hash 路由：静态部署或直接用文件打开都能正常跳转',
+    'const routes = [',
+    routeList,
+    ']',
+    '',
+    'const router = createRouter({',
+    '  history: createWebHashHistory(),',
+    '  routes',
+    '})',
+    '',
+    '// 按页面 SEO 标题更新浏览器标签',
+    'router.afterEach((to) => {',
+    '  if (to.meta && to.meta.title) document.title = String(to.meta.title)',
+    '})',
+    '',
+    'export default router',
+    ''
+  ].join('\n')
+
+  files['src/assets/base.css'] = [
+    '/* 基础重置：组件样式均由画布布局生成（绝对定位） */',
+    '* {',
+    '  margin: 0;',
+    '  padding: 0;',
+    '  box-sizing: border-box;',
+    '}',
+    '',
+    'body {',
+    '  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;',
+    '  color: #333333;',
+    '  background-color: #ffffff;',
+    '}',
+    ''
+  ].join('\n')
+
+  files['README.md'] = [
+    `# ${siteName}（Vue 工程）`,
+    '',
+    '由可视化网页编辑器导出，包含以下页面：',
+    '',
+    ...routeEntries.map((entry, index) => `${index + 1}. ${entry.title} —— 路由 \`${entry.path}\``),
+    '',
+    '## 运行',
+    '',
+    '```bash',
+    'npm install',
+    'npm run dev      # 本地开发',
+    'npm run build    # 打包到 dist/',
+    'npm run preview  # 预览打包产物',
+    '```',
+    '',
+    '## 说明',
+    '',
+    '- 使用 **hash 路由**（`createWebHashHistory`），打包产物可直接静态部署，无需服务端重写规则',
+    '- 页面之间的跳转已按路由路径生成；每个页面对应 `src/views/` 下的一个组件',
+    '- 页面标题来自各页面的 SEO 设置（`seoTitle`），路由切换时自动更新 `document.title`',
+    localImageNote(pages, imagePaths),
+    ''
+  ].filter(line => line !== null).join('\n')
+
+  return files
+}
+
+/**
+ * 本地图片说明（有本地图片时在 README 中提示）
+ */
+function localImageNote(pages, imagePaths) {
+  const count = Object.keys(imagePaths || {}).length
+  if (count === 0) return null
+  return `- 已包含 ${count} 张本地图片，位于 \`images/\` 目录，可直接部署`
+}
+
+/**
+ * 导出整站 Vue 工程（当前画布的所有页面 → ZIP）
+ * @param {Object} canvas - 画布数据 { name, pages }
+ * @param {string} filename - 输出文件名（不含扩展名）
+ * @returns {Promise<{pageCount: number, files: string[]}>}
+ */
+export async function exportVueSiteWithImages(canvas, filename = 'vue-site') {
+  const pages = (canvas?.pages || []).filter(Boolean)
+  if (pages.length === 0) {
+    throw new Error('画布中没有可导出的页面')
+  }
+
+  const zip = new JSZip()
+  const { imagePaths, localImages } = collectLocalImagesFromPages(pages)
+
+  const files = generateVueSiteFiles(canvas, imagePaths)
+  Object.entries(files).forEach(([filePath, content]) => {
+    zip.file(filePath, content)
+  })
+
+  if (localImages.length > 0) {
+    const imagesFolder = zip.folder('images')
+    localImages.forEach(img => {
+      imagesFolder.file(img.filename.replace('images/', ''), img.data)
+    })
+  }
+
+  const content = await zip.generateAsync({ type: 'blob' })
+  saveAs(content, `${filename}.zip`)
+
+  return { pageCount: pages.length, files: Object.keys(files) }
+}
+
+/**
  * 导出 Vue 文件（自动检测是否包含本地图片）
  * @param {Object} pageData - 页面数据
  * @param {string} filename - 文件名（不含扩展名）
@@ -3666,78 +3922,8 @@ export function downloadVue(vueCode, filename = 'page.vue') {
 export async function exportVueWithImages(pageData, filename = 'page') {
   const zip = new JSZip()
   
-  // 收集本地图片
-  const localImages = []
-  const imagePaths = {}
-  
-  pageData.components.forEach((comp, index) => {
-    // 处理图片组件的本地图片
-    if (comp.type === 'image' && comp.props?.localImage && comp.props?.src) {
-      const imageData = extractBase64Image(comp.props.src)
-      if (imageData) {
-        const originalName = comp.props.imageFileName || `image_${index}`
-        const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
-        const imageFileName = `images/${safeName}.${imageData.extension}`
-        
-        localImages.push({
-          filename: imageFileName,
-          data: imageData.data
-        })
-        
-        imagePaths[comp.id] = imageFileName
-      }
-    }
-    
-    // 处理标签页组件的本地图片
-    if (comp.type === 'tabs' && comp.props?.tabImages) {
-      const tabImages = comp.props.tabImages
-      Object.keys(tabImages).forEach((tabKey, tabIndex) => {
-        const imageConfig = tabImages[tabKey]
-        if (imageConfig.isLocalImage && imageConfig.url) {
-          const imageData = extractBase64Image(imageConfig.url)
-          if (imageData) {
-            const originalName = imageConfig.fileName || `tab_image_${index}_${tabIndex}`
-            const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
-            const imageFileName = `images/${safeName}.${imageData.extension}`
-            
-            localImages.push({
-              filename: imageFileName,
-              data: imageData.data
-            })
-            
-            imagePaths[`${comp.id}_${tabKey}`] = imageFileName
-          }
-        }
-      })
-    }
-
-    // 处理轮播图组件的本地图片（每行：地址|说明|链接|文件名，地址为 data: 即本地图片）
-    if (comp.type === 'carousel' && comp.props?.images) {
-      String(comp.props.images)
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .forEach((line, slideIndex) => {
-          const parts = line.split('|')
-          const slideUrl = (parts[0] || '').trim()
-          if (!slideUrl.startsWith('data:')) return
-
-          const imageData = extractBase64Image(slideUrl)
-          if (!imageData) return
-
-          const originalName = (parts[3] || '').trim() || `slide_${index}_${slideIndex}`
-          const safeName = originalName.replace(/[^a-zA-Z0-9_\-.]/g, '_')
-          const imageFileName = `images/${safeName}.${imageData.extension}`
-
-          localImages.push({
-            filename: imageFileName,
-            data: imageData.data
-          })
-
-          imagePaths[`${comp.id}_slide_${slideIndex}`] = imageFileName
-        })
-    }
-  })
+  // 收集本地图片（复用统一收集逻辑，避免文件名重复扩展名等问题）
+  const { imagePaths, localImages } = collectLocalImagesFromPages([pageData])
   
   // 添加图片到 ZIP
   if (localImages.length > 0) {

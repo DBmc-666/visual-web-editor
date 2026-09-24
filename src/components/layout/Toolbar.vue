@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useEditor } from '../../stores/editor'
 import { useAi } from '../../stores/ai'
 import VersionPanel from '../panels/VersionPanel.vue'
-import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages, exportVue, exportSiteWithImages, rewritePageLinks } from '../../utils/htmlGenerator'
+import { generatePageHTML, downloadHTML, exportPageWithImages, hasLocalImages, exportVue, exportSiteWithImages, rewritePageLinks, exportVueSiteWithImages } from '../../utils/htmlGenerator'
 
 const { page, previewMode, togglePreviewMode, setZoom, zoom, deselectComponent, exportPageJSON, exportLayoutJSON, importPageJSON, importLayoutJSON, undo, redo, canUndo, canRedo, guidesVisible, guidesList, snapEnabled, toggleGuides, toggleSnap, addHorizontalGuide, addVerticalGuide, addCircleGuide, addCenterGuides, addRotatableLineGuide, clearGuides, activeCanvas, pages } = useEditor()
 
@@ -224,6 +224,22 @@ async function handleExportVue() {
   }
 }
 
+// 导出整站 Vue 工程（当前画布的所有页面 + 路由）
+async function handleExportSiteVue() {
+  try {
+    const canvas = activeCanvas.value
+    if (!canvas) return
+    if ((canvas.pages || []).length < 1) {
+      alert('当前画布没有可导出的页面')
+      return
+    }
+    await exportVueSiteWithImages(canvas, canvas.name || 'vue-site')
+  } catch (error) {
+    console.error('导出整站 Vue 失败:', error)
+    alert('导出整站 Vue 失败，请重试')
+  }
+}
+
 // 导出页面JSON
 function handleExportPageJSON() {
   const json = exportPageJSON()
@@ -439,7 +455,13 @@ function closePageSettings() {
           <button class="dropdown-item" @click="() => { handleExportLayoutJSON(); showExportMenu = false }">
             导出布局
           </button>
-          
+          <button
+            class="dropdown-item"
+            @click="() => { handleExportSiteVue(); showExportMenu = false }"
+            :title="pages.length > 1 ? `把当前画布的 ${pages.length} 个页面导出为 Vue 工程（含路由）` : '当前画布只有 1 个页面'"
+          >
+            导出整站 Vue 工程{{ pages.length > 1 ? `（${pages.length} 页）` : '' }}
+          </button>
         </div>
       </div>
 

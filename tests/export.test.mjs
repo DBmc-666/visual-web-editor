@@ -277,6 +277,81 @@ export default async function run(t) {
   t.check('ZIP 内含视频封面图', posterZip.names.includes('images/cover.png'), posterZip.names.join(','))
   t.check('导出 HTML 引用封面图', (await posterZip.read('poster-test.html')).includes('images/cover.png'))
 
+  // ==================== 整站 Vue 工程导出 ====================
+  t.group('整站 Vue 工程导出')
+
+  const vueSiteCanvas = {
+    id: 'vs', name: '我的 Vue 站点',
+    pages: [
+      makePage({
+        id: 'vp1', name: '首页', slug: 'index', seoTitle: '首页 - 鼎信科技', height: 2000,
+        components: [
+          makeComponent('navMenu', { props: { menuItems: '首页|#page:vp1\n关于|#page:vp2' } }),
+          makeComponent('button', { props: { content: '去关于', actionType: 'link', href: '#page:vp2' } })
+        ]
+      }),
+      makePage({
+        id: 'vp2', name: '关于我们', slug: 'about-us', seoTitle: '关于我们 - 鼎信科技', height: 1500,
+        components: [makeComponent('text', { props: { content: '关于内容' } })]
+      })
+    ]
+  }
+
+  const siteFiles = gen.generateVueSiteFiles(vueSiteCanvas)
+  const fileNames = Object.keys(siteFiles)
+  t.check('生成工程基础文件',
+    ['package.json', 'vite.config.js', 'index.html', 'README.md', 'src/main.js', 'src/App.vue', 'src/router/index.js', 'src/assets/base.css']
+      .every(f => fileNames.includes(f)),
+    fileNames.join(','))
+  t.check('每个页面生成一个视图组件',
+    fileNames.includes('src/views/Index.vue') && fileNames.includes('src/views/AboutUs.vue'),
+    fileNames.filter(f => f.startsWith('src/views/')).join(','))
+
+  const pkg = JSON.parse(siteFiles['package.json'])
+  t.check('package.json 含 vue 与 vue-router',
+    !!pkg.dependencies.vue && !!pkg.dependencies['vue-router'] && !!pkg.scripts.dev,
+    JSON.stringify(pkg.dependencies))
+  t.includes('vite.config.js 使用 vue 插件', siteFiles['vite.config.js'], "@vitejs/plugin-vue")
+  t.includes('main.js 挂载路由', siteFiles['src/main.js'], "use(router)")
+  t.includes('App.vue 含 router-view', siteFiles['src/App.vue'], '<router-view />')
+
+  const routerCode = siteFiles['src/router/index.js']
+  t.includes('路由使用 hash 模式', routerCode, 'createWebHashHistory')
+  t.includes('首页路由为 /', routerCode, 'path: "/"')
+  t.includes('其余页面用 slug 路由', routerCode, 'path: "/about-us"')
+  t.includes('路由带页面标题（来自 SEO）', routerCode, '首页 - 鼎信科技')
+  t.includes('路由切换更新 document.title', routerCode, 'document.title')
+  t.includes('index.html 标题取首页 SEO', siteFiles['index.html'], '<title>首页 - 鼎信科技</title>')
+
+  const homeView = siteFiles['src/views/Index.vue']
+  t.check('页面链接重写为路由路径（hash 形式）',
+    homeView.includes('#/about-us') && !homeView.includes('#page:'),
+    homeView.match(/href="[^"]*"/g)?.slice(0, 3).join(','))
+  t.includes('README 列出页面与路由', siteFiles['README.md'], '/about-us')
+
+  resetSavedFiles()
+  const vueSiteResult = await gen.exportVueSiteWithImages(vueSiteCanvas, '我的 Vue 站点')
+  t.check('整站 Vue 导出返回页面数', vueSiteResult.pageCount === 2, JSON.stringify(vueSiteResult))
+  const vueZip = await loadSavedZip()
+  t.check('ZIP 内含工程文件',
+    vueZip.names.includes('package.json') && vueZip.names.includes('src/router/index.js') && vueZip.names.includes('src/views/AboutUs.vue'),
+    vueZip.names.join(','))
+  t.check('ZIP 内 index.html 存在', vueZip.names.includes('index.html'))
+
+  // 带本地图片的整站 Vue 导出
+  resetSavedFiles()
+  await gen.exportVueSiteWithImages({
+    id: 'vs2', name: '带图站点',
+    pages: [makePage({
+      id: 'vp3', name: '首页', slug: 'index',
+      components: [makeComponent('image', { props: { src: DATA_URL, localImage: true, imageFileName: 'hero.png' } })]
+    })]
+  }, 'vue-with-img')
+  const vueImgZip = await loadSavedZip()
+  t.check('整站 Vue 也打包本地图片', vueImgZip.names.includes('images/hero.png'), vueImgZip.names.join(','))
+  t.includes('视图内图片路径已替换', await vueImgZip.read('src/views/Index.vue'), 'images/hero.png')
+  t.includes('README 提示包含本地图片', await vueImgZip.read('README.md'), '本地图片')
+
   // ==================== Vue 导出 ====================
   t.group('Vue 导出')
 

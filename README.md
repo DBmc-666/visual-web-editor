@@ -82,6 +82,20 @@ AI 辅助建站（Beta）
 （第一个页面为 `index.html`，其余按页面名生成如 `about-us.html`，中文页面名回退为 `page-N.html`），
 页面之间的跳转链接会互相串联，解压即可直接部署。含本地图片时 `images/` 目录一并打包。
 
+**导出整站 Vue 工程**（工具栏「导出 ▼」菜单）：把当前画布导出为完整的
+**Vue 3 + Vite + Vue Router** 工程，每个页面一个视图组件：
+
+```
+package.json  vite.config.js  index.html  README.md
+src/main.js  src/App.vue  src/assets/base.css
+src/router/index.js        # 每个页面一条路由，meta.title 取自页面 SEO
+src/views/Home.vue …       # 视图名由英文 slug 转 PascalCase
+images/…                   # 本地图片（如有）
+```
+
+- 使用 **hash 路由**，`npm run build` 后可直接静态部署（无需服务端重写规则）
+- 页面之间的跳转已生成为路由路径；路由切换时自动更新 `document.title`
+
 > 草稿会保存整个项目（所有画布与页面）以及当前停留的画布/页面；旧版单页草稿会自动迁移。
 
 ### AI 页面感知与多页生成

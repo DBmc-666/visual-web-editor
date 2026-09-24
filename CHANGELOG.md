@@ -35,6 +35,21 @@
   与该函数注释声明的「防 XSS 与语法错误」不符
 - 由新增的 SEO 转义测试发现，现已补上 `<` `>` 转义
 
+### 🧩 整站 Vue 工程导出
+
+- 新增 `generateVueSiteFiles(canvas)` / `exportVueSiteWithImages(canvas)`：
+  把当前画布的所有页面导出为完整的 **Vue 3 + Vite + Vue Router** 工程
+  - 生成 `package.json` / `vite.config.js` / `index.html` / `README.md`
+    / `src/main.js` / `src/App.vue` / `src/router/index.js` / `src/assets/base.css`
+  - 每个页面生成 `src/views/<ViewName>.vue`（视图名由英文 slug 转 PascalCase）
+  - 路由使用 **hash 模式**（`createWebHashHistory`）：静态部署或直接打开文件都能跳转
+  - 页面之间的 `#page:<id>` 链接被重写为路由路径（`#/about-us`）
+  - 路由 `meta.title` 取自页面 SEO 标题，切换路由时自动更新 `document.title`
+  - 含本地图片时一并打包 `images/` 并在 README 中提示
+- 工具栏「导出 ▼」菜单新增「导出整站 Vue 工程」
+- 顺带把 `exportVueWithImages` 里重复的本地图片收集逻辑统一到
+  `collectLocalImagesFromPages`（修掉它遗留的文件名重复扩展名问题）
+
 ### 🔒 数据安全：结构变更可撤销 + 历史版本
 
 - **结构性操作纳入撤销栈**：新建/删除/重命名/复制/排序画布与页面、
